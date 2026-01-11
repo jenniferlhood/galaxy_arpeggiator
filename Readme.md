@@ -22,14 +22,14 @@ The midi in this device follows the MIDI Associations' [MIDI 1.0 Core Specificat
 
 
 - Play notes on an external keyboard and the arpeggiator will create patterns and send them to the recieving devices. The input notes are captured when the first note is pressed (first midi note on message) until the last note is released (midi note off message) - it's intended to capture chords but allows for entering more notes than three or four. The input buffer can currently caputre up to 12 notes. If play is on the the arpeggiator doesn't wait for all notes to be captured, and starts generating from the notes it has in the input buffer. Each new note capture results in a new arpeggio being generated and if the inputs notes are released the buffer is cleared
-- Arpeggios are generated based on the parameters set by each channel's two potentiometers and two switches. The parameters can be modified during play for intersting effects without any new notes being added to the capture
+- Arpeggios are generated based on the parameters set by each channel's two potentiometers and two switches. The parameters can be modified during play for interesting effects without any new notes being added to the capture
 
 
 ## Interface Layout
 ```
 
 Top view
-____________________	
+_____________________	
  |                 |
  |     O  O  O  O  |
  |  O  O  O  O  O  |
@@ -51,57 +51,42 @@ _______________________
 X : hole for Arduino USB connection
 ```
 
-The physical midi controller is a wooden box with control components on the top and inputs/outputs on the back. I used 6" cedar planks for the sides and back, and clear acrylic sheet (1/8") for the face and bottom because it seemed like a cool idea to be able to peer inside at the DIY electrical compoonents.
+The physical midi controller is a wooden box with control components on the top and inputs/outputs on the back. I used 6" cedar planks for the sides and back, and clear acrylic sheet (1/8") for the face and bottom because it seemed like a cool idea to be able to peer inside at the DIY electrical components.
 
 The controls on the top are organized into 5 columns. From left to right, the 
-First colum is a general colum. The Potentiometer is used for Tempo control, the two switches are, top to bottom: reset /stop / play and mode 1/ mode 2 / mode 3.
-The following colums are areggiator parameter controls for the four channels.
+First colum is a general colum. The Potentiometer is used for tempo control, the two switches are, top to bottom: reset /stop / play and mode 1/ mode 2 / mode 3.
+The following columns are areggiator parameter controls for the four channels.
 
 MIDI channel numbers that correspond to the four outputs are configurable in the header file, but currently compiled in and cannot be changed at run time. By default they are set to channels 1,2,3,4 in order.
 
 ## Parameter description: Potentiometers
-#### Global tempo and MIDI clock
+### Global tempo and MIDI clock
  - Tempo ranges from 20 to 300 bpm with a resolution of 4 bpm
  - Tempo LED flashes each quarter note
  - Sends a MIDI clock pulse at 4 PPQN
  - Side note: I implement a custom MIDI CC (cc# 94) that sends the tempo value directly to recieving equipment (who need to implement it). For me this produces more accurate synchronization than calculting tempo from clock pulses as I don't need to account for latency issues (a bit of a limitation of using the Arduino platform). Using 4 bpm resolution gives me 2 extra bits to use for higher tempo values: I can compress a tempo range from 0-510 bpm to a range of 0-127
   - Settings for tempo and synchronization can be configured in project header
 
-#### MIDI Channels 
+### MIDI Channel pots
 
 - The top potentiometer for each channel is the algorithm select. Currently there are 12 algorithms that move from simple to complex as the dial is turned up. The simplest algorithm at setting zero is "root note" where the pattern is simply the lowest note of the input chord. Turning up the dial moves through some standard patterns (in order, reversed, ascending/descending) after about half way on the dial, patterns become randomized and will slowly mutate as they are played. Also about half way on the dial, dynamics are modified (by velocity value) and become more exaggerated (note not all synths implement MIDI velocity).
 
 - The bottom potentiometer is the divisions toggle, which effects the time divisions of the notes in the arpeggio. Setting of zero represent whole notes (assuming 4/4 time), but this depends on the synth clock settings. Currently the controller operations on a 4 PPQN (four pulses per quarter note) system, so the slowest division emits a note after every 16 MIDI clock pulses.
-but could be changed by modifying the defintions in the header file. The tempo  and represents the slowest rate that notes are played per channel. Turning up the knob converts the pattern into faster rhythms. Currently not all patterns are even time divisions and, you will observe irregular divisions for some pot values. If multiple synths are connected to the regen box then polyrhythms can be created by using different division settings for different channels
+Time division settings cab be changed by modifying the defintions in the header file.  Turning up the knob converts the pattern into faster rhythms. Currently not all patterns are even time divisions and, you will observe irregular divisions for some division values. If multiple synths are connected to the galaxy arpeggiator then polyrhythms can be created by using different division settings for different channels
 
 
-### Parameter description: Switches
+## Parameter description: Switches
+### Global switches 
 
-- The top switch is a toggle for arpeggiator algorithm (or alg). The three options are: left:clock, middle: stardard arp or right: alt function arp. The effect of the "alt function" or sometimes called "regen" setting depends on what mode the box is operating in. Mode settings are global settings, and the modes are described in the "globals" section. Modes are not fully implemented in my current version
+#### Playback control
 
-- In the left-most position, the channel is set to "clock". This means a MIDI device listening on the corresponding channel will receive only a MIDI clock pulse. This is useful for synchronizing other equipment like drum machines or just other synths that you don't want receiving midi note information. In the middle position, the channel is set to Arp, the main generative algorithm. When in Arp, and set to play, the MIDI controller sends out midi notes as determined by the algorithm set by the top potentiometer. The right most is "regen" setting. When global mode is set to 0 (left), then this regen mode is a "djent" mode. The algorithm has more randomness at every setting and rests are introduced. This can give patterns a different rhythmic character. When mode is set to 1, this "regen" functions as a "freeze" setting, freeing the current algorithm setting in place. Changes to the potentiometer or notes sent to midi in will not change what notes are set to the channel while freeze is switched on. However, switching off freeze or changing the mode means the pattern will regenerate to the current pattern in the buffer and adopt the settings from the algorithm potentiometer. The division pot still influences patterns when in freeze mode. The idea is to freeze the notes of the arpeggio, so you can send different arpeggios to different instruments with the same controller (something you might ordinarily have to use different input devices to accomplish).
+- The top switch in the global column is a toggle for playing or stopping the notes from being sent.
+- Left: Reset, Middle: Stop, Right: Play
+- When the switch is set to play, the argeggiator sends out a MIDI play message (which could trigger connected devices to play if they have sequencers or arpeggiators. These should be turned off in the devices settings if this is not desired behaviour). The arpeggator will begin its internal timer and start sending out midi clock pulses, so even though notes are not yet being sent, connected equipment can be synchronized if they respond to MIDI clock. When MIDI notes are sent to the Galaxy Arpeggiator by connected keyboard, the arpeggiator begins to generate note sequences and send them out to attached devices.
+- When the switch is in the Middle/ stop position, a MIDI Stop message is sent, and notes from the generated arpeggios are no longer sent. MIDI clock is no longer sent. The arpeggio maintains it's generated buffer and position in that buffer, so if switched back into play, the arpeggio sequence continues, however arps start from position 0, not from where they left off.
+- When the switch is put in Reset mode, several MIDI messages are sent: Stop, SystemReset, AllSoundOff to the global channel message is sent. This is because there are different uses of these MIDI messages by different equipment.  All note buffers are cleared, and new notes must be entered next time the unit is switched to Play.
 
-Top switch - playback
-
-- left is reset
-  - clears the generative note buffer
-
-- middle is stop
-  - stop playback but does not clear note buffer
-
-- right is Play
-  - starts master clock and sends MIDI play message
-
-Note:
-- when starting from stopped, all generated sequences start from position zero. This is in contrast to the per-channel clock/play switch behaviour
-
-
-
-## Algorithms, Djent mode and Random
-
-
-
-## Mode switch
+#### Mode Control
 
 Top switch in the first column toggles the mode for the arpeggiator. MOdes have the effect of modifying global functionaly, meaning they will change how all the other channels operate. Currently, this only imacts the functionaly of the "regen" or "alt arp" switch but it's possible that I could want this to have wider impact (alter random factors, change the range of octaves chosen or even which arpeggio patterns are avaialble)
 
@@ -115,15 +100,32 @@ Top switch in the first column toggles the mode for the arpeggiator. MOdes have 
 	- if a channel has an arp pattern created from djent alg, (and it's alg switch is in djent mode), it will be frozen in djent mode and pattern will not resume until mode is switched to 2 or 1
 
 
+#### Polyphonic mode
 
-## Polyphonic mode
-
-This function is still being developed. However, the idea is that for polyphonic synths, it would be nice to create evolving chords from the generated arp sequence.
+- This function is still being developed. However, the idea is that for polyphonic synths, it would be nice to create evolving chords from the generated arp sequence.
 By default the Galaxy Arpeggiator designates channels 3 and 4 as "polyphonic" meaning, that polyphonic mode will be used for the mode toggle switch for these channels.
 
-For modes 2 and 3 (or just mode 3, TBD) an arpeggio will send out two notes at the same time instead of just one. I know this isn't really a full chord, but has the effect of implying a chord, espeically if other channels are sending out different notes at the same time. The two notes are chosen from the generated sequence. Currently, it is not more sophisticated than chosing the current note to be sent a second note a some n notes from the current note where n is a value between {1, nummber of notes in the generated buffer}
+- For modes 2 and 3 (or just mode 3, TBD) an arpeggio will send out two notes at the same time instead of just one. I know this isn't really a full chord, but has the effect of implying a chord, espeically if other channels are sending out different notes at the same time. The two notes are chosen from the generated sequence. Currently, it is not more sophisticated than chosing the current note to be sent a second note a some n notes from the current note where n is a value between {1, nummber of notes in the generated buffer}
  When sequences get randomized by the Arp parameter, this will end up producing different types of intervals.
 
+### MIDI Channel switches
+
+- The switches under columns 2-5 affect the arpeggios sent to the individual columns.
+
+#### Arpeggiator control
+
+- The top swich controls the mode for the individual arpeggio. In the left-most switch position, the MIDI channel is set to "clock". This means a MIDI device listening on the corresponding channel will receive only a MIDI clock pulse. This lets the galaxy arpeggiator act as synchronization unit other equipment like drum machines or guitar effect pedals that accept MIDI clock (Pedals from Chase Bliss or Old Blood Noise Endeavers for example). Entering clock mode while playback is on also has the effect of "muting" a synth that was receiving MIDI notes, so this mode can be used musically as well.
+ 
+ - In the middle switch position, the channel is set to Arp, the main generative algorithm. When a channel is in Arp mode and set to play, the MIDI controller sends out MIDI notes as determined by the algorithm set by the top potentiometer.
+ 
+ - In the right switch position, the channel is set to "alt arp" or "regen" whose function changes depending on the global mode setting. 
+
+ - Currently, the regen mode can be 1 of two modes to the generated arpeggio: "djent" or "freeze" mode. When in global modes 1 and 2, channels alt arp function is djent mode. Djent mode introduces random rest notes into the arpeggio pattern, adding more rhythmic variety. Global mode 3 changes the channel alt mode to freeze mode. Freeze mode freezes the current pattern, even if new notes are entered or a regeneration cycle occurs that might otherwise mutate the pattern. With one channel in freeze mode, and another not, new notes generated arpeggios have the imact of creating generative harmonies. The division pot and tempo still affects arpeggios in freeze mode.
+ When freeze mode is exited, either by changing the channe switch back to arps or changing the mode switch, an arpeggio from the currently captured input notes will be created (aka the pattern is no longer "frozen")
+ 
+
+#### Octave control
+- The bottom switch for each channel determine how many octaves to use in generated arpeggios. From left: 0, or no additional octaves than the received via MIDI input. Midde: add an additional ocatve - determined by input notes. High notes result in lower octaves generated, low notes result in higher octaves. Right: 2 additional octaves are added. The point at which Galaxy Arpeggiator decides to add higher or lower octaves is configurable in the project header.
 
 ## GALAXY dev log and TODO
 
