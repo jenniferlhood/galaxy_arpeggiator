@@ -1,4 +1,4 @@
-# GALAXY AREGGIATOR
+# GALAXY ARPEGGIATOR
 ## Generative Arduino MIDI controller
 
  Galaxy Arpeggiator is a midi controller intended to be used with multiple hardware or software synths simultaneously. Up to four different arpeggio patterns (different by note sequence and rhythm) can sent to to different devices via midi channel. Arpeggio patterns are not fully random, they are chosent from a seqence of notes delivered to the controller via an external keybed that sends midi note information. 
