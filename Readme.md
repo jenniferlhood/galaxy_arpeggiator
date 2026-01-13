@@ -4,15 +4,15 @@
 
 ![Galaxy Arpeggiator current build](galaxy.jpg)
 
- Galaxy Arpeggiator is a midi controller intended to be used with multiple hardware or software synths simultaneously. Up to four different arpeggio patterns (different by note sequence and rhythm) can sent to to different devices via midi channel. Arpeggio patterns are not fully random, they are chosent from a seqence of notes delivered to the controller via an external keybed that sends midi note information. 
+ Galaxy Arpeggiator is a MIDI controller intended to be used with multiple hardware or software synths simultaneously. Up to four different arpeggio patterns (different by note sequence and rhythm) can sent to to different devices via MIDI channel. Arpeggio patterns are not fully random, they are chosent from a seqence of notes delivered to the controller via an external keybed that sends MIDI note information. 
  
- This midi controller cannot generate music on it's own. Unlike other arpeggiators where you control the melodic information by chosing the key, mode, intervals or chord type of the created arpeggio, I wanted a controller that created arpeggios from notes that I am playing. I wanted an experience that was more like a dynamic instrument rather than a programming interface. I want no menu diving. All functionally should be avaialble from a button, dial or switch, much like an actual playable instrument.
+ This MIDI controller cannot generate music on it's own. Unlike other arpeggiators where you control the melodic information by chosing the key, mode, intervals or chord type of the created arpeggio, I wanted a controller that created arpeggios from notes that I am playing. I wanted an experience that was more like a dynamic instrument rather than a programming interface. I want no menu diving. All functionally should be avaialble from a button, dial or switch, much like an actual playable instrument.
 
 The Galaxy arepeggator can be used to create soundscapes, evolving melodic lines, harmonies and baselines, playable simultaneously from the input notes. 
 
 This gear description is Arduino based, I used the Arduino Mega for its larger selection of input pins. The code in this repository is to be run on on the Arduino, and it is not complete. I am changing functionality as I use the instrument, and updating it for my personal compositional taste and style and adjusting it to suit my musical purposes. My goal isn't to make it more generalizable or suitable for any other usecase than my own.
 
-The midi in this device follows the MIDI Associations' [MIDI 1.0 Core Specification](https://drive.google.com/file/d/1ewRrvMEFRPlKon6nfSCxqnTMEu70sz0c/view) which include full schematics and parts list. Step by step guides for building circuits for MIDI input, output and through can be found on the [Notes and Volts blog](https://www.notesandvolts.com/2012/01/fun-with-arduino-midi-input-basics.html) which includes detailed video tutorials.
+The MIDI in this device follows the MIDI Associations' [MIDI 1.0 Core Specification](https://drive.google.com/file/d/1ewRrvMEFRPlKon6nfSCxqnTMEu70sz0c/view) which include full schematics and parts list. Step by step guides for building circuits for MIDI input, output and through can be found on the [Notes and Volts blog](https://www.notesandvolts.com/2012/01/fun-with-arduino-MIDI-input-basics.html) which includes detailed video tutorials.
 
 ## Examples of use
 
@@ -24,7 +24,7 @@ The midi in this device follows the MIDI Associations' [MIDI 1.0 Core Specificat
 ## General functionality
 
 
-- Play notes on an external keyboard and the arpeggiator will create patterns and send them to the recieving devices. The input notes are captured when the first note is pressed (first midi note on message) until the last note is released (midi note off message) - it's intended to capture chords but allows for entering more notes than three or four. The input buffer can currently caputre up to 12 notes. If play is on the the arpeggiator doesn't wait for all notes to be captured, and starts generating from the notes it has in the input buffer. Each new note capture results in a new arpeggio being generated and if the inputs notes are released the buffer is cleared
+- Play notes on an external keyboard and the arpeggiator will create patterns and send them to the recieving devices. The input notes are captured when the first note is pressed (first MIDI note on message) until the last note is released (MIDI note off message) - it's intended to capture chords but allows for entering more notes than three or four. The input buffer can currently caputre up to 12 notes. If play is on the the arpeggiator doesn't wait for all notes to be captured, and starts generating from the notes it has in the input buffer. Each new note capture results in a new arpeggio being generated and if the inputs notes are released the buffer is cleared
 - Arpeggios are generated based on the parameters set by each channel's two potentiometers and two switches. The parameters can be modified during play for interesting effects without any new notes being added to the capture
 
 
@@ -50,11 +50,11 @@ _______________________
 |  0  0  0  0  0  X   |
 |_____________________|
 
-0 : 5-pin midi DIN
+0 : 5-pin MIDI DIN
 X : hole for Arduino USB connection
 ```
 
-The physical midi controller is a wooden box with control components on the top and inputs/outputs on the back. I used 6" cedar planks for the sides and back, and clear acrylic sheet (1/8") for the face and bottom because it seemed like a cool idea to be able to peer inside at the DIY electrical components.
+The physical MIDI controller is a wooden box with control components on the top and inputs/outputs on the back. I used 6" cedar planks for the sides and back, and clear acrylic sheet (1/8") for the face and bottom because it seemed like a cool idea to be able to peer inside at the DIY electrical components.
 
 The controls on the top are organized into 5 columns. From left to right, the 
 First colum is a general colum. The Potentiometer is used for tempo control, the two switches are, top to bottom: reset /stop / play and mode 1/ mode 2 / mode 3.
@@ -85,7 +85,7 @@ Time division settings cab be changed by modifying the defintions in the header 
 
 - The top switch in the global column is a toggle for playing or stopping the notes from being sent.
 - Left: Reset, Middle: Stop, Right: Play
-- When the switch is set to play, the argeggiator sends out a MIDI play message (which could trigger connected devices to play if they have sequencers or arpeggiators. These should be turned off in the devices settings if this is not desired behaviour). The arpeggator will begin its internal timer and start sending out midi clock pulses, so even though notes are not yet being sent, connected equipment can be synchronized if they respond to MIDI clock. When MIDI notes are sent to the Galaxy Arpeggiator by connected keyboard, the arpeggiator begins to generate note sequences and send them out to attached devices.
+- When the switch is set to play, the argeggiator sends out a MIDI play message (which could trigger connected devices to play if they have sequencers or arpeggiators. These should be turned off in the devices settings if this is not desired behaviour). The arpeggator will begin its internal timer and start sending out MIDI clock pulses, so even though notes are not yet being sent, connected equipment can be synchronized if they respond to MIDI clock. When MIDI notes are sent to the Galaxy Arpeggiator by connected keyboard, the arpeggiator begins to generate note sequences and send them out to attached devices.
 - When the switch is in the Middle/ stop position, a MIDI Stop message is sent, and notes from the generated arpeggios are no longer sent. MIDI clock is no longer sent. The arpeggio maintains it's generated buffer and position in that buffer, so if switched back into play, the arpeggio sequence continues, however arps start from position 0, not from where they left off.
 - When the switch is put in Reset mode, several MIDI messages are sent: Stop, SystemReset, AllSoundOff to the global channel message is sent. This is because there are different uses of these MIDI messages by different equipment.  All note buffers are cleared, and new notes must be entered next time the unit is switched to Play.
 

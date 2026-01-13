@@ -1,5 +1,5 @@
 #define BUFFER_SIZE 12
-#define MAX_SEQUENCE_SIZE 64
+#define MAX_SEQUENCE_SIZE 96
 
 
 class MidiNote {
@@ -34,11 +34,8 @@ void MidiNote::set(byte _chan, byte _pitch, byte _vel, bool _on) {
 //TODO parent and child classes for different types of buffers
 class NoteBuffer {
   public:
-    bool poly; //polyphonic?
-    byte chord_dist;
+    bool poly; //is this a buffer for a polysynth? (false for monosynth)
     
-    byte variety; //a randomly chosen value to add variety
-
     NoteBuffer(byte _num_notes, byte channel, bool poly);
     void add(MidiNote note);
     MidiNote getNote(byte i);
@@ -106,7 +103,7 @@ NoteBuffer::NoteBuffer(byte _type, byte _channel, bool _poly)
 
   vel_drift = 0;
   oct_drift = 0;
-  chord_dist = 0;
+  
   setVelDrift(0);
   setOctDrift(true);
 }
