@@ -49,6 +49,9 @@ class NoteBuffer {
     byte getMaxNoteNum();
     void increment();
     void setRoot();
+    void setNotePitch(byte i, byte pitch);
+    void setNoteVel(byte i, byte vel);
+    byte getNoteVel(byte i);
     byte getRoot();
     byte getBars(); 
     void setRoot(byte pitch);
@@ -229,6 +232,22 @@ void NoteBuffer::setOctDrift(bool setting) {
 void NoteBuffer::setRoot(byte pitch){
   root_note = pitch;
 }
+
+void NoteBuffer::setNotePitch(byte i, byte pitch){
+  byte pos = (cur_pos + (i % curr_note_num)) % max_note_num;
+  buffer[pos].pitch = pitch;
+}
+
+void NoteBuffer::setNoteVel(byte i, byte vel){
+  byte pos = (cur_pos + (i % curr_note_num)) % max_note_num;
+  buffer[pos].vel = vel;
+}
+
+byte NoteBuffer::getNoteVel(byte i){
+  byte pos = (cur_pos + (i % curr_note_num)) % max_note_num;
+  return buffer[pos].vel;
+}
+
 
 //TODO capture buffer should calculate it's own root when it is being created
 void NoteBuffer::setRoot(){

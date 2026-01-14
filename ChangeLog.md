@@ -2,12 +2,29 @@
 
 ## Jan 2026
 
---
+
+Jan 13
+
+Tempo
+- Sadly tempo is still an issue. Even sending the tempo value directly to my custom sequencer there is still drift. I'm kind of out of ideas for now and will pause this project for now.
+
+- I decided that implementing some fucntionality for after-touch MIDI messages doesn't make sense, as the point of keybed for the arpeggiator is to input notes then alter params with the midi controller. I'm not constantly touching the keyboard to provide enough useful after-touch information
+
+- I decided on a mode scheme for, implementing a totally new mode and changing how freeze/djent is done. I'll update the readme to reflect this. The new mode is less arp like and more base-line like. It features sets of repeating patterns. Number of repeats controlled by the "octave" switch. I believe this mode of generation can offer a bit of contrast to the other modes. I added freeze mode to every mode so that each mode can have a distinct pattern saved when swiching between modes. Yet to test if this is useful for making live music.
+
+- I believe I have improved the arp generation even further - more variety, a bit less random and I tried to avoid more than one "expensive" shuffle operation per algorithm
+
+- I did some cleaning up of the code as I needed to refactor a bunch of it to implement the new way of doing modes
+
+
+
+Jan 07 ----------
 Tempo
 - Solved sync issues with the custom midi sequencer (galaxy sequencer) by using custom midi cc #94
 
 Implement after touch functionality
 - Velocity? Midi CC?
+
 
 Improved Arps
 - some of the random arps are too similar

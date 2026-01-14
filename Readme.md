@@ -4,7 +4,7 @@
 
 ![Galaxy Arpeggiator current build](galaxy.jpg)
 
- Galaxy Arpeggiator is a MIDI controller intended to be used with multiple hardware or software synths simultaneously. Up to four different arpeggio patterns (different by note sequence and rhythm) can sent to to different devices via MIDI channel. Arpeggio patterns are not fully random, they are chosent from a seqence of notes delivered to the controller via an external keybed that sends MIDI note information. 
+ Galaxy Arpeggiator is a MIDI controller intended to be used with multiple hardware or software synths simultaneously. Up to four different arpeggio patterns (different by note sequence and rhythm) can sent to different devices via MIDI channel. Arpeggio patterns are not fully random, they are chosent from a seqence of notes delivered to the controller via an external keybed that sends MIDI note information. 
  
  This MIDI controller cannot generate music on it's own. Unlike other arpeggiators where you control the melodic information by chosing the key, mode, intervals or chord type of the created arpeggio, I wanted a controller that created arpeggios from notes that I am playing. I wanted an experience that was more like a dynamic instrument rather than a programming interface. I want no menu diving. All functionally should be avaialble from a button, dial or switch, much like an actual playable instrument.
 
@@ -91,17 +91,15 @@ Time division settings cab be changed by modifying the defintions in the header 
 
 #### Mode Control
 
-Top switch in the first column toggles the mode for the arpeggiator. MOdes have the effect of modifying global functionaly, meaning they will change how all the other channels operate. Currently, this only imacts the functionaly of the "regen" or "alt arp" switch but it's possible that I could want this to have wider impact (alter random factors, change the range of octaves chosen or even which arpeggio patterns are avaialble)
+Top switch in the first column toggles the mode for the arpeggiator. Modes have the effect of modifying global functionaly, meaning they will change how all the other channels operate. Currently, this only imacts the functionaly of the "regen" or "alt arp" switch but it's possible that I could want this to have wider impact (alter random factors, change the range of octaves chosen or even which arpeggio patterns are avaialble)
 
 
 - left is mode 1: Normal mode
-	- The "regen" or "alt arp" pattern is DJENT MODE
+	- Standard arp patterns
 - middle is mode 2:
 	- polyphonic mode is switched on for channels designated with this mode
 - right is mode 3:
-	- The "regen" or "alt arp" pattern is FREEZE MODE
-	- if a channel has an arp pattern created from djent alg, (and it's alg switch is in djent mode), it will be frozen in djent mode and pattern will not resume until mode is switched to 2 or 1
-
+	- This is "repeat" mode where arpeggio patterns are created using sets of repeating patterns derived from the captured buffer. Each time new notes are captured, this mode resets the set of arps to the beggining (Still in testing)
 
 #### Polyphonic mode
 
@@ -121,13 +119,11 @@ By default the Galaxy Arpeggiator designates channels 3 and 4 as "polyphonic" me
  
  - In the middle switch position, the channel is set to Arp, the main generative algorithm. When a channel is in Arp mode and set to play, the MIDI controller sends out MIDI notes as determined by the algorithm set by the top potentiometer.
  
- - In the right switch position, the channel is set to "alt arp" or "regen" whose function changes depending on the global mode setting. 
+ - In the right switch position, the channel is set to FREEZE mode and will freeze an arpeggio in place, so that more notes can be added to generate arpeggios for all channels except those in FREEZE mode. This has the effect of "saving" an arp while keeping the ability to modify otheres. With his mode, interesting harmonies can be created.
 
- - Currently, the regen mode can be 1 of two modes to the generated arpeggio: "djent" or "freeze" mode. When in global modes 1 and 2, channels alt arp function is djent mode. Djent mode introduces random rest notes into the arpeggio pattern, adding more rhythmic variety. Global mode 3 changes the channel alt mode to freeze mode. Freeze mode freezes the current pattern, even if new notes are entered or a regeneration cycle occurs that might otherwise mutate the pattern. With one channel in freeze mode, and another not, new notes generated arpeggios have the imact of creating generative harmonies. The division pot and tempo still affects arpeggios in freeze mode.
- When freeze mode is exited, either by changing the channe switch back to arps or changing the mode switch, an arpeggio from the currently captured input notes will be created (aka the pattern is no longer "frozen")
- 
+ -  
 
 #### Octave control
-- The bottom switch for each channel determine how many octaves to use in generated arpeggios. From left: 0, or no additional octaves than the received via MIDI input. Midde: add an additional ocatve - determined by input notes. High notes result in lower octaves generated, low notes result in higher octaves. Right: 2 additional octaves are added. The point at which Galaxy Arpeggiator decides to add higher or lower octaves is configurable in the project header.
+- The bottom switch for each channel determine how many octaves to use in generated arpeggios, as well as the number of rests. From left: 0, or no additional octaves than the received via MIDI input. Midde: add an additional ocatve - determined by input notes. Right is DJENT mode, which inserts rests at random. In modes 1 and 2, rests are inserted into existing patterns. In Mode 3, notes from the existing pattern are converted to rests.
 
 

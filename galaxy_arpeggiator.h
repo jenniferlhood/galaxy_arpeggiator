@@ -104,7 +104,6 @@
 
 //Generative parameters
 #define OCTAVECHANGE 53 //note that determines if octaves added higher or lower (midi note ranges from 21 to 127, but notes higher than 115 often sound kinda bad)
-#define POLYPHONY 4 //max notes to play simultaneously for polyphonic synthesizers
 
 #define REGEN_FACTOR 2 //how many arps before a regen/shuffle
 //the reading from the algorithm pot that determines if "more randomness" is needed
@@ -113,9 +112,6 @@
 // This is the setting at which shuffling is applied 
 #define GENERATIVE_SETTING 5
 
-//sequence defines
-#define MAX_SEQUENCE_SIZE 64
-
 //not to be changed - based on physical build! My unit has only 4 output channels!!
 #define MAX_CHANNELS 4
 
@@ -123,25 +119,13 @@
 #define MAX_DIVS  10
 #define MAX_ALG   10
 
-#define MAX_REPEATS 6  //for constructing MODE2 algortithms
+#define MAX_REPEATS 4  //for constructing MODE2 algortithms
 
-#define DIVS_PER_BAR    (48 *2) //48 divisions per bar, 48 is a whole note, 24 is half, 12 is quarter etct
-#define MAX_TICKS2      96// max notes per buffer
 
 
 //TODO: testing which kinds of divisions are more useful musically
-#define WHOLENOTE           (48 *2)
-#define D_HALF              (32 *2)
-#define HALFNOTE            (24 *2)
-#define D_QUARTER           (18 *2) 
-#define QUARTERNOTE         (12 *2) 
-#define Q_TRIPLETS          (8  *2)
-#define EIGHTHNOTE          (6  *2)
-#define E_TRIPLETS          (4  *2)
-#define SIXTEENTHNOTE       (3  *2)
-#define SIXTEENTHNOTE_TRIP  (1  *2) //instead lets have dotted eightsths
 
-/*
+
 #define DIVS_PER_BAR 48
 #define WHOLENOTE 48
 #define D_HALF 32
@@ -153,7 +137,25 @@
 #define E_TRIPLETS 4
 #define SIXTEENTHNOTE 3
 #define SIXTEENTHNOTE_TRIP 1 //instead lets have dotted eightsths
+
+/*
+#define WHOLENOTE           (48 *2)
+#define D_HALF              (32 *2)
+#define HALFNOTE            (24 *2)
+#define D_QUARTER           (18 *2) 
+#define QUARTERNOTE         (12 *2) 
+#define Q_TRIPLETS          (8  *2)
+#define EIGHTHNOTE          (6  *2)
+#define E_TRIPLETS          (4  *2)
+#define SIXTEENTHNOTE       (3  *2)
+#define SIXTEENTHNOTE_TRIP  (1  *2) //instead lets have dotted eightsths
 */
+
+#define DIVS_PER_BAR  WHOLENOTE //48 divisions per bar, 48 is a whole note, 24 is half, 12 is quarter etct
+
+
+
+
 
 //a seeminly useful tempo range
 #define MINTEMPO 20
