@@ -44,7 +44,6 @@ class NoteBuffer {
     MidiNote getPrevNote();
     MidiNote getPreviNote(byte i);
     MidiNote getAbsPrevNote();
-    //MidiNote getAbsolutePrevNote();
     byte getCurNoteNum();
     byte getMaxNoteNum();
     void increment();
@@ -79,7 +78,7 @@ class NoteBuffer {
     byte cur_pos; //start position in the circular buffer
     byte max_note_num; //allows buffer size smaller than the max GENERATE_SIZE
     byte type; //0: small buffer, 1: large buffer
-    byte bars; //number of rounds before shuffle, if applicable
+    byte bars; 
     byte root_note; //the pitch of the lowest note of the active set of notes in the buffer
     
     //automate variation over time

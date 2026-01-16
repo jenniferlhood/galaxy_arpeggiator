@@ -5,9 +5,9 @@
 
 //----- Device specific midi settings
 
-#define MIDICLOCKCOMMAND  //define to send a midi cc command to explicitly set the tempo, instead of using midi clock pulse + calculation (implemented by the galaxy_sequencer)
-#define MIDICLOCKCHAN   1   //channel for the midi cc tempo command
-#define MIDICLOCKNUMBER 94 //cc number for the tempo command
+//#define MIDICLOCKCOMMAND  //define to send a midi cc command to explicitly set the tempo, instead of using midi clock pulse + calculation (implemented by the galaxy_sequencer)
+//#define MIDICLOCKCHAN   1   //channel for the midi cc tempo command
+//#define MIDICLOCKNUMBER 94 //cc number for the tempo command
 
 #define SEED 10 //change it occasionally for more variety
 
@@ -37,6 +37,27 @@
 #define NTS1RESONANCE 44
 #define NTS1OSCSHAPE  54
 #define NTS1OSCALT    55
+
+
+#define MINILOGUE
+#define MINI_VCO1_SHAPE 36
+#define MINI_VCO2_SHAPE 37
+#define MINI_CROSSMOD_DEPTH 41
+#define MINI_PITCH_EG_INT 42
+#define MINI_FILTER 43
+#define MINI_RES 44
+#define MINI_FILTER_EG_INT 45
+#define MINI_AMP_ATT 16
+#define MINI_AMP_DEC 17
+#define MINI_AMP_SUS 18
+#define MINI_AMP_REL 19
+#define MINI_EG_ATT 20
+#define MINI_EG_DEC 21
+#define MINI_EG_SUS 22
+#define MINI_EG_REL 23
+#define MINI_LFO_RATE 24
+#define MINI_LFO_DEPTH 26
+#define MINI_LFO_VOICE_DEPTH 27
 
 
 //#define CAPTUREDEBUG
@@ -125,7 +146,7 @@
 
 //TODO: testing which kinds of divisions are more useful musically
 
-
+/*
 #define DIVS_PER_BAR 48
 #define WHOLENOTE 48
 #define D_HALF 32
@@ -137,8 +158,8 @@
 #define E_TRIPLETS 4
 #define SIXTEENTHNOTE 3
 #define SIXTEENTHNOTE_TRIP 1 //instead lets have dotted eightsths
+*/
 
-/*
 #define WHOLENOTE           (48 *2)
 #define D_HALF              (32 *2)
 #define HALFNOTE            (24 *2)
@@ -149,7 +170,7 @@
 #define E_TRIPLETS          (4  *2)
 #define SIXTEENTHNOTE       (3  *2)
 #define SIXTEENTHNOTE_TRIP  (1  *2) //instead lets have dotted eightsths
-*/
+
 
 #define DIVS_PER_BAR  WHOLENOTE //48 divisions per bar, 48 is a whole note, 24 is half, 12 is quarter etct
 
