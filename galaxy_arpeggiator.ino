@@ -278,7 +278,7 @@ void onNoteOnCapture(byte channel, byte _pitch, byte _vel){
 
 
 //simlar to alg3 but add swap last 2
-void repeat_alg7(byte chan_index, byte num_repeates){
+void repeat_alg7(byte chan_index, byte num_repeats){
   MidiNote new_note; 
   MidiNote next_note;
   byte tot = captureBuf.getCurNoteNum();
@@ -286,7 +286,7 @@ void repeat_alg7(byte chan_index, byte num_repeates){
   for (byte j=0; j< tot-1; j++) {
     new_note = captureBuf.getCurNote();
     next_note = captureBuf.getNote(j+1);
-    for (byte k=0; k<num_repeates; k++) {
+    for (byte k=0; k<num_repeats; k++) {
       byte choice = random(0,3); //add octave chance  
       if (choice == 0) {
         GenBuf[chan_index]->add(new_note);
@@ -301,14 +301,14 @@ void repeat_alg7(byte chan_index, byte num_repeates){
   }
 }
 
-void repeat_alg6(byte chan_index, byte num_repeates){
+void repeat_alg6(byte chan_index, byte num_repeats){
   MidiNote new_note = captureBuf.getCurNote(); 
   byte tot = captureBuf.getCurNoteNum();
-  byte choice = random(0, num_repeates/2);
+  byte choice = random(0, num_repeats/2);
   
   for (byte j=0; j< tot; j++) {        
     new_note = captureBuf.getNote(j);
-    for (byte k=0; k < num_repeates + choice; k++) {
+    for (byte k=0; k < num_repeats + choice; k++) {
       GenBuf[chan_index]->add(new_note);  
     } 
     captureBuf.increment();
@@ -316,15 +316,16 @@ void repeat_alg6(byte chan_index, byte num_repeates){
 }
 
 
-void repeat_alg5(byte chan_index, byte num_repeates){
+void repeat_alg5(byte chan_index, byte num_repeats){
   MidiNote new_note; 
   MidiNote next_note;
   byte tot = captureBuf.getCurNoteNum();
-  
+  byte choice_rests = random(1, num_repeats-2);
+
   for (byte j=0; j< tot-1; j++) {
     new_note = captureBuf.getCurNote();
     next_note = captureBuf.getNote(j+1);
-    for (byte k=0; k < num_repeates; k++) {
+    for (byte k=0; k < num_repeats; k++) {
       byte choice = random(0,3); //add octave chance  
       GenBuf[chan_index]->add(new_note);
       if (choice == 0) {
@@ -337,116 +338,72 @@ void repeat_alg5(byte chan_index, byte num_repeates){
       GenBuf[chan_index]->add(new_note);
       GenBuf[chan_index]->add(next_note);
     }    
+    if(genType[chan_index] <= GENERATIVE_SETTING && octave[chan_index]  == 2){
+      for (byte j=0; j<choice_rests; j++){
+        add_rest_note(chan_index);
+      } 
+    }
     captureBuf.increment();
   }
 }
 
 //1,2,3,4 -> 1,1,1,2,2,2,3,3,3,3,4,4,4,
-void repeat_alg3(byte chan_index, byte num_repeates){
+void repeat_alg3(byte chan_index, byte num_repeats){
   MidiNote new_note = captureBuf.getCurNote(); 
   byte tot = captureBuf.getCurNoteNum();
-  byte choice = random(1, num_repeates+1);
+  byte choice = random(1, num_repeats+1);
+  byte choice_rests = random(1, num_repeats-2);
 
   for (byte j=0; j< tot; j++) {        
     new_note = captureBuf.getNote(j);
     for (byte k=0; k<choice; k++) {
       GenBuf[chan_index]->add(new_note);  
     } 
+    if(genType[chan_index] <= GENERATIVE_SETTING && octave[chan_index]  == 2){
+      for (byte j=0; j<choice_rests; j++){
+        add_rest_note(chan_index);
+      } 
+    }
     captureBuf.increment();
   }
 }
 
 
 //1,2,3,4 -> 1,2,1,2,1,3,1,3,1,4,1,4 (4*(n-1))
-void repeat_alg2(byte chan_index, byte num_repeates){
+void repeat_alg2(byte chan_index, byte num_repeats){
   MidiNote new_note = captureBuf.getCurNote(); 
   MidiNote next_note;
   byte tot = captureBuf.getCurNoteNum();
 
   for (byte j=1; j< tot; j++) {        
     next_note = captureBuf.getNote(j);
-    for (byte k=0; k<num_repeates; k++) {
+    for (byte k=0; k<num_repeats; k++) {
       GenBuf[chan_index]->add(new_note);  
       GenBuf[chan_index]->add(next_note);  
     } 
+    
     captureBuf.increment();
   }
 }
 
 //1,2,3,4 -> 1,1,1,2,2,2,3,3,3,3,4,4,4,
-void repeat_alg1(byte chan_index, byte num_repeates){
+void repeat_alg1(byte chan_index, byte num_repeats){
   MidiNote new_note = captureBuf.getCurNote(); 
   byte tot = captureBuf.getCurNoteNum();
-
+  byte choice_rests = random(1, num_repeats-2);
   for (byte j=0; j< tot; j++) {        
     new_note = captureBuf.getNote(j);
-    for (byte k=0; k<num_repeates; k++) {
+    for (byte k=0; k<num_repeats; k++) {
       GenBuf[chan_index]->add(new_note);  
     } 
+    if(genType[chan_index] <= GENERATIVE_SETTING && octave[chan_index]  == 2){
+      for (byte j=0; j<choice_rests; j++){
+        add_rest_note(chan_index);
+      } 
+    }
     captureBuf.increment();
   }
 }
-
-/*
-//simlar to alg3 but replace the first note with an occasional octave of the first
-void repeat_alg4(byte chan_index, byte num_repeates){
-  MidiNote new_note = captureBuf.getCurNote();
-  MidiNote next_note;
-  byte tot = captureBuf.getCurNoteNum();
-  byte choice = random(0, num_repeates-1);
-
-  for (byte j=1; j< tot-1; j++) {
-    byte choice = random(0,3); //add octave chance  
-    for (byte k=0; k < num_repeates + choice - 1; k++) {
-      if (choice == 0) {
-        if ( new_note.pitch >= OCTAVECHANGE && new_note.vel != 0 ) {
-          new_note.pitch = new_note.pitch - 12;
-        } else if ( new_note.pitch < OCTAVECHANGE && new_note.pitch != 0){
-          new_note.pitch = new_note.pitch + 12;
-        }
-      } else {
-        next_note = captureBuf.getNote(j+1);
-      }
-      GenBuf[chan_index]->add(new_note);  
-      GenBuf[chan_index]->add(next_note);  
-    }    
-    captureBuf.increment();
-  }
-}
-*/
-
-/*
-//1,2,3,4 -> 1,2,1,2,2,3,2,3,3,4,3,4 
-void repeat_alg3(byte chan_index, byte num_repeates){
-  MidiNote new_note; 
-  MidiNote next_note; 
-  byte tot = captureBuf.getCurNoteNum();
-
-  for (byte j=0; j< tot-1; j++) {
-    new_note = captureBuf.getCurNote();    
-    next_note = captureBuf.getNote(j+1);
-    for (byte k=0; k<num_repeates; k++) {
-      GenBuf[chan_index]->add(new_note);  
-      GenBuf[chan_index]->add(next_note);  
-    }   
-    captureBuf.increment();
-  }
-}
-
-void repeat_alg1(byte chan_index, byte num_repeates){
-  MidiNote new_note = captureBuf.getCurNote(); 
-  byte tot = captureBuf.getCurNoteNum();
-  byte choice = random(0, num_repeates);
-
-  for (byte j=0; j< tot; j++) {        
-    new_note = captureBuf.getNote(j);
-    for (byte k=0; k < num_repeates + choice; k++) {
-      GenBuf[chan_index]->add(new_note);  
-    } 
-    captureBuf.increment();
-  }
-}
-*/
 
 
 
@@ -520,8 +477,8 @@ void repeating_sets(byte chan_index) {
   set_emphasis(chan_index,freq);
   choice = random(2, GenBuf[chan_index]->getCurNoteNum()/2 -1);
 
-  //For the third octave add rests, this can be like a djent mode
-  if(octave[chan_index]  == 2){
+  //For the third octave mode (rest mode), this can be like a djent mode
+  if(genType[chan_index] > GENERATIVE_SETTING && octave[chan_index]  == 2){
     for (byte j=0; j<choice; j++) {
       change_one_to_rest(chan_index);
     }

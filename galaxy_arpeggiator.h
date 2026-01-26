@@ -12,7 +12,7 @@
 #define SEED 10 //change it occasionally for more variety
 
 //Device specific options for parameter mutation via midi cc
-#define MIDICC //send midicc on channel 1 - this is for effect pedals that accept midi CC like the OBNE Darkstar v3
+//#define MIDICC //send midicc on channel 1 - this is for effect pedals that accept midi CC like the OBNE Darkstar v3
 #define CC_FREQ QUARTERNOTE
 //#define DARKSTAR
 
@@ -142,8 +142,6 @@
 
 #define MAX_REPEATS 4  //for constructing MODE2 algortithms
 
-
-
 //TODO: testing which kinds of divisions are more useful musically
 
 /*
@@ -171,11 +169,7 @@
 #define SIXTEENTHNOTE       (3  *2)
 #define SIXTEENTHNOTE_TRIP  (1  *2) //instead lets have dotted eightsths
 
-
 #define DIVS_PER_BAR  WHOLENOTE //48 divisions per bar, 48 is a whole note, 24 is half, 12 is quarter etct
-
-
-
 
 
 //a seeminly useful tempo range
