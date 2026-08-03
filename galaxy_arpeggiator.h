@@ -1,6 +1,8 @@
+
+#include "GalaxyCommon.h"
 //CUSTOMIZATION SETTINGS
 
-#define SERIALVIS //to use with my python serial visualizer. It logs specific messages to serial out.
+//#define SERIALVIS //to use with my python serial visualizer. It logs specific messages to serial out.
 //#define SNIFF //To intercept and log any midi messages observed by the arduino on the 5-pin midi input
 
 //----- Device specific midi settings
@@ -9,55 +11,15 @@
 //#define MIDICLOCKCHAN   1   //channel for the midi cc tempo command
 //#define MIDICLOCKNUMBER 94 //cc number for the tempo command
 
-#define SEED 10 //change it occasionally for more variety
+#define SEED 8 //change it occasionally for more variety
 
 //Device specific options for parameter mutation via midi cc
 //#define MIDICC //send midicc on channel 1 - this is for effect pedals that accept midi CC like the OBNE Darkstar v3
 #define CC_FREQ QUARTERNOTE
-//#define DARKSTAR
 
-#define VOLCAFM
-#define VOLCAFMCHANNEL 3  //channel this synth is plugged into
-#define FM_TRANSPOSE  40
-#define FM_MOD_ATTACK 42
-#define FM_MOD_DECAY  43
-#define FM_CA_ATTACK  44
-#define FM_CA_DECAY   45
-#define FM_LFO_RATE   46
-#define FM_LFO_DEPTH  47
-
-#define NTS-1
-#define NTS1CHANNEL   4
-#define NTS1ATTACK    16
-#define NTS1RELEASE   19
-#define NTS1TREMRATE  21
-#define NTS1TREMDEPTH 20
-#define NTS1LFORATE   24
-#define NTS1LFODEPTH  26
-#define NTS1RESONANCE 44
-#define NTS1OSCSHAPE  54
-#define NTS1OSCALT    55
+//#define INVERSIONS //do do melodic inversions on occasion
 
 
-#define MINILOGUE
-#define MINI_VCO1_SHAPE 36
-#define MINI_VCO2_SHAPE 37
-#define MINI_CROSSMOD_DEPTH 41
-#define MINI_PITCH_EG_INT 42
-#define MINI_FILTER 43
-#define MINI_RES 44
-#define MINI_FILTER_EG_INT 45
-#define MINI_AMP_ATT 16
-#define MINI_AMP_DEC 17
-#define MINI_AMP_SUS 18
-#define MINI_AMP_REL 19
-#define MINI_EG_ATT 20
-#define MINI_EG_DEC 21
-#define MINI_EG_SUS 22
-#define MINI_EG_REL 23
-#define MINI_LFO_RATE 24
-#define MINI_LFO_DEPTH 26
-#define MINI_LFO_VOICE_DEPTH 27
 
 
 //#define CAPTUREDEBUG
@@ -70,10 +32,10 @@
 //#define SEQDEBUG
 
 //change these if a midi device uses a fixed channel
-#define CHAN1 1
-#define CHAN2 2
-#define CHAN3 3 //polyphonic chanel
-#define CHAN4 4 //polyphonic channel
+#define CHAN1 10
+#define CHAN2 11
+#define CHAN3 12 //polyphonic chanel
+#define CHAN4 12 //polyphonic channel
 
 //Defines for the Digital analog input pins for three-way SPDT switches. The pin # mapping depends on how Arduino unit is wired up to the switches and pots
 #define SWITCH_0L_RESET   50  // play or reset (middle is stop)
@@ -131,45 +93,48 @@
 // a design choice of the regen box is that when the knobs are turned up, more randomness is introduced
 
 // This is the setting at which shuffling is applied 
-#define GENERATIVE_SETTING 5
+#define GENERATIVE_SETTING 6
+
+#define EXTRANOTE 6
 
 //not to be changed - based on physical build! My unit has only 4 output channels!!
 #define MAX_CHANNELS 4
 
 //change if you need more rhythmic time divisions or generative algorithms. These determine the maximum number read from the potentiometers
-#define MAX_DIVS  10
-#define MAX_ALG   10
+#define MAX_DIVS  13
+#define MAX_ALG   11
+
+#define CHORD_NOTES 2 //Notes in a chord for chord mode
 
 #define MAX_REPEATS 4  //for constructing MODE2 algortithms
 
 //TODO: testing which kinds of divisions are more useful musically
+// - currently experimenting
+#define THIRTYSECOND        (3)
+#define SIXTEENTH           (6) //8
+#define EIGHTHNOTE          (SIXTEENTH   *2) //6
+#define QUARTERNOTE         (EIGHTHNOTE  *2) //4
+#define HALFNOTE            (QUARTERNOTE *2) //2
+#define WHOLENOTE           (HALFNOTE    *2) //0
+#define TWOWHOLENOTES       (WHOLENOTE   *2)
 
-/*
-#define DIVS_PER_BAR 48
-#define WHOLENOTE 48
-#define D_HALF 32
-#define HALFNOTE 24
-#define D_QUARTER 18 //TOD is this more interesting than 2 16?
-#define QUARTERNOTE 12 //TODO these may be eight notes...TODO
-#define Q_TRIPLETS 8
-#define EIGHTHNOTE 6
-#define E_TRIPLETS 4
-#define SIXTEENTHNOTE 3
-#define SIXTEENTHNOTE_TRIP 1 //instead lets have dotted eightsths
-*/
+#define SIXTEENTH_T         (4) //9
+#define EIGHT_T             (SIXTEENTH_T *2) //7
+#define QUARTER_T           (EIGHT_T  *2) //5
+#define HALF_T              (QUARTER_T  *2) 
+#define WHOLENOTE_T         (HALF_T      *2)
 
-#define WHOLENOTE           (48 *2)
-#define D_HALF              (32 *2)
-#define HALFNOTE            (24 *2)
-#define D_QUARTER           (18 *2) 
-#define QUARTERNOTE         (12 *2) 
-#define Q_TRIPLETS          (8  *2)
-#define EIGHTHNOTE          (6  *2)
-#define E_TRIPLETS          (4  *2)
-#define SIXTEENTHNOTE       (3  *2)
-#define SIXTEENTHNOTE_TRIP  (1  *2) //instead lets have dotted eightsths
+#define D_SIXTEEN           (9)
+#define D_EIGHT             (D_SIXTEEN *2)
+#define D_QUARTER           (D_EIGHT   *2) //3
+#define D_HALF              (D_QUARTER *2) //1
+#define D_WHOLE             (D_HALF    *2) //Tied notes
+#define THREE_D_EIGHTH      (D_EIGHT   *3)
+#define THREE_D_QUARTER     (D_QUARTER *3)
 
-#define DIVS_PER_BAR  WHOLENOTE //48 divisions per bar, 48 is a whole note, 24 is half, 12 is quarter etct
+// - current order of time divisions: Based on time-feel rather than slowest to fastest (as it was previously)
+//[TWOWHOLENOTES, WHOLENOTE, HALFNOTE, QUARTERNOTE, EIGHTHNOTE, SIXTEENTH, D_HALF, WHOLENOTE_T, D_QUARTER, HALF_T, D_EIGHT, QUARTER_T, EIGHT_T ]
+#define DIVS_PER_BAR  TWOWHOLENOTES //48 divisions per bar, 48 is a whole note, 24 is half, 12 is quarter etct
 
 
 //a seeminly useful tempo range
@@ -188,3 +153,6 @@
 
 //octave settings
 #define DJENT   2
+
+
+

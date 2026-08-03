@@ -1,5 +1,14 @@
 # GALAXY dev log and TODO
 
+## July 2026
+
+- removed redundant loop over the channels in the generate() function
+- modified how polyphonic notes are chosen in chord mode and
+	- used constants set at generation time, so there is pure randomness when notes are chosen
+- modified how extra notes are chosen. More pattern based, less complete random
+- modified how rests are chosen for buffers with 2 or more ntoes in them
+ - choice to subsititute at generation time
+
 ## Jan 2026
 
 

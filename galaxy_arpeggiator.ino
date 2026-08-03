@@ -24,7 +24,7 @@ byte mode_setting = 0; //0, 1, 2
 bool note_off_switch[MAX_CHANNELS] = {0};
 //Generative settings obtained from arduino inputs
 byte genType[MAX_CHANNELS] = {0};
-bool gen_switch = false;
+
 byte regen[MAX_CHANNELS] = {0}; //saved from the first set of switches. 1: regular sequence, 0: clock 2: regenerate
 bool regen_switch[MAX_CHANNELS] = {0}; //a switch to signal that the squence should regenerate at the next tick
 byte regen_bars[MAX_CHANNELS] = {0}; //for tracking when to regenerate a regenerative sequence
@@ -35,7 +35,7 @@ byte octave[MAX_CHANNELS] = {0}; //saved from the second set of switches
 bool arp_leds_on[MAX_CHANNELS] = {0}; //to assist in blinking LEDS for some reasonable amount of time. State is on or off.
 
 //convenience arrays for checking the state of switches, or to lookup numeric values
-byte div_reference[MAX_DIVS] = {WHOLENOTE, D_HALF, HALFNOTE, D_QUARTER, QUARTERNOTE, Q_TRIPLETS, EIGHTHNOTE, E_TRIPLETS, SIXTEENTHNOTE,SIXTEENTHNOTE_TRIP};
+byte div_reference[MAX_DIVS] = {TWOWHOLENOTES, WHOLENOTE, HALFNOTE, QUARTERNOTE, EIGHTHNOTE, SIXTEENTH, D_HALF, WHOLENOTE_T, D_QUARTER, HALF_T, D_EIGHT, QUARTER_T, EIGHT_T };
 byte gen_pots[MAX_CHANNELS] = {ALG_POT_1, ALG_POT_2, ALG_POT_3, ALG_POT_4};
 byte div_pots[MAX_CHANNELS] = {DIV_POT_1, DIV_POT_2, DIV_POT_3, DIV_POT_4};
 byte regen_switches[MAX_CHANNELS] = {SWITCH_1_REGEN,SWITCH_2_REGEN,SWITCH_3_REGEN,SWITCH_4_REGEN};
@@ -45,16 +45,18 @@ byte oct2_switches[MAX_CHANNELS] = {SWITCH_1_OCT2,SWITCH_2_OCT2,SWITCH_3_OCT2,SW
 byte div_leds[MAX_CHANNELS] = {LED_DIV_1, LED_DIV_2, LED_DIV_3, LED_DIV_4};
 byte arp_leds[MAX_CHANNELS] = {LED_ARP_1, LED_ARP_2, LED_ARP_3, LED_ARP_4}; //reference table for the arp leds
 
+
+
 //Sequence trackers 
 byte div_count = 0; 
 int8_t active_note_count = 0; //only one buffer for captured notes
 byte chanArray[MAX_CHANNELS] = {CHAN1,CHAN2,CHAN3,CHAN4}; //convenice array for loops over all the channels
 
-NoteBuffer captureBuf =   NoteBuffer(0,0,false);
+NoteBuffer captureBuf =   NoteBuffer(0,0,false); //BUFFER_SIZE capture buffer
 NoteBuffer generateBuf1 = NoteBuffer(1,CHAN1,false); //monophonic sequence
 NoteBuffer generateBuf2 = NoteBuffer(1,CHAN2,false); //monophonic sequence
 NoteBuffer generateBuf3 = NoteBuffer(1,CHAN3,true); //polyphonic sequences 
-NoteBuffer generateBuf4 = NoteBuffer(1,CHAN4,false); //monophonic sequence
+NoteBuffer generateBuf4 = NoteBuffer(1,CHAN4,true); //polyphonic sequence
 NoteBuffer *GenBuf[MAX_CHANNELS] = {&generateBuf1,&generateBuf2,&generateBuf3,&generateBuf4}; //convenience array for buffers
   
 bool arp_on = false;
@@ -62,6 +64,9 @@ bool arp_on = false;
 //midi cc controls
 short cc_t_value = 0 ; //use t for MIDI cc mutating operations
 byte gchoice1 = random(0,6); //position in set of values to chose from
+
+//when using an inversion melody. Index refers to the interval (counting from the "root" of the chord)
+signed char inversion_chart[12] = {12, 11, 8, 5, 5, 2, 0, -2, -5, -5, -8, -11};
 
 void setup(){
   once:
@@ -108,6 +113,7 @@ void setup(){
   MIDI.setHandleNoteOff(onNoteOffCapture);
   MIDI.setHandleActiveSensing(onActiveSensing);
   MIDI.setHandleAfterTouchChannel(onTouch);
+  randomSeed(13);
 }
 
 void set_tempo(){
@@ -226,7 +232,7 @@ void onNoteOnCapture(byte channel, byte _pitch, byte _vel){
   }
   
   if (play_switch) { //activate note capture
-    gen_switch = true;
+    
     if (active_note_count <= 0){
       #ifdef CAPTUREDEBUG
       Serial.println("[D] CAPTURE: **New set of notes**");
@@ -274,9 +280,6 @@ void onNoteOnCapture(byte channel, byte _pitch, byte _vel){
  to the generative buffer for that sequence.
 =================================*/
 
-
-
-
 //simlar to alg3 but add swap last 2
 void repeat_alg7(byte chan_index, byte num_repeats){
   MidiNote new_note; 
@@ -315,7 +318,6 @@ void repeat_alg6(byte chan_index, byte num_repeats){
   }
 }
 
-
 void repeat_alg5(byte chan_index, byte num_repeats){
   MidiNote new_note; 
   MidiNote next_note;
@@ -348,6 +350,7 @@ void repeat_alg5(byte chan_index, byte num_repeats){
 }
 
 //1,2,3,4 -> 1,1,1,2,2,2,3,3,3,3,4,4,4,
+// same as 1 but with chance to add a random note or more
 void repeat_alg3(byte chan_index, byte num_repeats){
   MidiNote new_note = captureBuf.getCurNote(); 
   byte tot = captureBuf.getCurNoteNum();
@@ -367,7 +370,6 @@ void repeat_alg3(byte chan_index, byte num_repeats){
     captureBuf.increment();
   }
 }
-
 
 //1,2,3,4 -> 1,2,1,2,1,3,1,3,1,4,1,4 (4*(n-1))
 void repeat_alg2(byte chan_index, byte num_repeats){
@@ -405,10 +407,7 @@ void repeat_alg1(byte chan_index, byte num_repeats){
   }
 }
 
-
-
-
-//TODO other patters
+// MODE 3 GENERATION - BASELINES
 //after generating the repeats, apply a swap?
 void repeating_sets(byte chan_index) {
   byte add_repeats = 1;
@@ -422,56 +421,53 @@ void repeating_sets(byte chan_index) {
 
   switch(genType[chan_index]){
     case 9:
-      repeat_alg7(chan_index, 3+add_repeats);
-      change_one_octave(chan_index);
+      repeat_alg7(chan_index, 3 + 3*add_repeats);
       if (octave[chan_index] == 1 ){
-        change_one_octave(chan_index);
         change_one_octave(chan_index);
       }
       break;
     case 8:
-      repeat_alg7(chan_index, 3+add_repeats);
+      repeat_alg7(chan_index, 2 + 2*add_repeats);
       if (octave[chan_index] == 1 ){
         change_one_octave(chan_index);
       }
       break;
     case 7:
-      repeat_alg6(chan_index, 4+add_repeats);
-      change_one_octave(chan_index);
+      repeat_alg6(chan_index, 2 + 2*add_repeats);
       if (octave[chan_index] == 1 ) {
-        change_one_octave(chan_index);
         change_one_octave(chan_index);
       }
       break;
     case 6:
-      repeat_alg5(chan_index, 3+add_repeats); 
-      change_one_octave(chan_index);
+      repeat_alg5(chan_index, 3 + 3*add_repeats); 
       if (octave[chan_index] == 1 ) {
         change_one_octave(chan_index);
       }
       break;
     case 5:
-      repeat_alg5(chan_index, 2+add_repeats); //1,2,1,2,1,2,1,3,1,3..
+      repeat_alg5(chan_index, 2 + add_repeats); //1,2,1,2,1,2,1,3,1,3..
+      if (octave[chan_index] == 1 ) {
+        change_one_octave(chan_index);
+      }
       break;
     case 4:
       repeat_alg3(chan_index, 4 + 2*add_repeats);
       if (octave[chan_index] == 1 ) {
         change_one_octave(chan_index);
-        change_one_octave(chan_index);
       }
       break;
     case 3:
-      repeat_alg1(chan_index, 4 + add_repeats);
+      repeat_alg2(chan_index, 2 + 2*add_repeats);
       if (octave[chan_index] == 1 ) {
         change_one_octave(chan_index);
       }
       break;
     case 2:
-      repeat_alg1(chan_index, 3 + 2*add_repeats); 
+      repeat_alg1(chan_index, 3 + 3*add_repeats); 
       break;
       //add octaves?
     case 1:
-      repeat_alg1(chan_index, 2+ add_repeats);
+      repeat_alg1(chan_index, 2 + 2*add_repeats);
       break;
   }
   set_emphasis(chan_index,freq);
@@ -508,6 +504,16 @@ void change_one_to_rest(byte chan_index){
   GenBuf[chan_index]->setNoteVel(pos, 0);
 }
 
+//convert a note to a rest
+void change_n_to_rests(byte chan_index, byte n){
+  Serial.println("Changing to rests: " + String(n));
+  byte tot = GenBuf[chan_index]->getCurNoteNum();
+  for (byte i=0; i <= n; i++){
+    byte pos = random(0,tot);
+    GenBuf[chan_index]->setNotePitch(pos, 0);
+    GenBuf[chan_index]->setNoteVel(pos, 0);
+  }
+}
 
 void change_one_octave(byte chan_index){
   byte tot = GenBuf[chan_index]->getCurNoteNum();
@@ -571,7 +577,6 @@ void add_root_octave_up(byte chan_index){
   GenBuf[chan_index]->add(root_note);
 }
 
-
 //add a octave down to genbuf
 void add_root_octave_down(byte chan_index){
   MidiNote root_note;
@@ -612,8 +617,7 @@ void add_rest_note(byte chan_index){
   GenBuf[chan_index]->add(rest_note);
 }
 
-void add_new_note(byte chan_index, byte choice){
- 
+void add_new_note(byte chan_index, byte choice){ 
   MidiNote new_note =  captureBuf.getNote(choice);
   new_note.vel = random(20,50);
   //#ifdef GENDEBUG
@@ -751,19 +755,74 @@ void genShuffle(byte chan_index){
   }
 }
 
+//add some rests
 //when alg==0 and djent is on we can make some interesting rhythms
-void generate_djent(byte chan_index, byte djentness){
+//since buffers of 1 note repeat, it will be more interesting if we have some rests between each
+void generate_djent(byte chan_index, byte djentmin, byte djentmax){
   MidiNote rest_note;
-  byte djenty_bar = random(1, djentness);
-  
-  for (int i = 0; i < djenty_bar; i++){
+  byte djenty_bar = random(djentmin, djentmax); 
+  for (byte i = 0; i < djenty_bar; i++){
     GenBuf[chan_index]->add(rest_note);
   }
 }
 
+
+void add_rest_by_pattern(){
+
+}
+
+//this is a different way to add rests than djent. Djent always adds a random number of rests between every note
+// Here we don't always want to add rests - so the chance can be used when this is called
+void add_rests(byte chan_index, byte restiness){
+  MidiNote rest_note;
+  byte num_notes = GenBuf[chan_index]->getCurNoteNum();
+  
+  for (byte i=0; i < restiness + num_notes/2; i++){
+    if (random(0, restiness)){
+      GenBuf[chan_index]->add(rest_note);
+    }
+  }
+}
+
+void generate_interval_shift(byte chan_index){
+  byte tot = GenBuf[chan_index]->getCurNoteNum();
+  byte root_pitch = GenBuf[chan_index]->getRoot();
+  byte new_pitch = 0;
+  byte curr_pitch = 0;
+  byte octave = 0;
+  byte index = 0;
+  byte choice = random(0,4);
+  
+  for (byte j=0; j< tot; j++) {
+    curr_pitch = GenBuf[chan_index]->getNote(j).pitch;
+    
+    while (curr_pitch + octave < root_pitch) {
+      octave +=12;
+    }
+    //calculate the interval from the root note, then look up the inversion chart to see what the inverted note (based on 12 note chromatic scale) should be
+    index = ((curr_pitch + octave) - root_pitch) % 12;
+    new_pitch = curr_pitch  + inversion_chart[index];
+
+    if (choice == 0) {
+      new_pitch -=12; 
+    }
+
+    if (new_pitch >= 119 ) {   //make sure the notes are bounded (not too high or low)
+       new_pitch -= 84;
+       Serial.println(new_pitch);
+    } else if (new_pitch <= 21){      
+      new_pitch += 12;
+    }    
+    GenBuf[chan_index]->setNotePitch(j, new_pitch);
+    //Serial.println("[D] INTERVAL SWAP: " + String(curr_pitch) + " with: " + String(new_pitch) + " index: " + String(index) + " change: " + String(inversion_chart[index]) + " root: " + String(root_pitch) + " octave: " + String(octave));
+  }
+  GenBuf[chan_index]->pickNewRoot();
+}
+
 //convert the capture buffer into the generative buffer when we're on the ARP setting
-void generate(){
+void generate(byte i){
   MidiNote new_note;
+  MidiNote rest_note;
   byte tot;
   byte num_additions;
   tot = captureBuf.getCurNoteNum();
@@ -772,220 +831,225 @@ void generate(){
     Serial.println("[E] buffer overflow error!");
     tot = BUFFER_SIZE;
   }
-  for (byte i=0; i< MAX_CHANNELS; i++) {
-    //Check if no generation is needed for this channel
-    if (regen[i] == CLOCK ||  regen[i] == FREEZE || (regen_switch[i] == false && gen_switch == false)){
-      continue; 
-    }  
-    #ifdef SERIALVIS
-    //Serial.println("[i] GENERATE ARP: chan: " + String(chanArray[i]));
-    Serial.println("GEN,0," + String(chanArray[i]) );
-    #endif
 
-    captureBuf.setRoot();
-    GenBuf[i]->startNewSet(); 
-    GenBuf[i]->setRoot(captureBuf.getRoot());
-    
-    //First gen setting is root note only
-    if (genType[i] == 0 ){
-      if (octave[i] == DJENT){        
-        num_additions = random(4,10);
-        for (byte k=0; k < num_additions; k++) {
-          generate_djent(i, 3);
-          add_root_note(i);
-        }        
-      } else {
-        //Serial.println("adding root only");
-        new_note.set(i, captureBuf.getRoot(), 40, false);
-        GenBuf[i]->add(new_note);
-      }
-      continue;
-    }
+  //Check if no generation is needed for this channel
+  if (regen[i] == CLOCK ||  regen[i] == FREEZE || (regen_switch[i] == false )){
+    Serial.println("No gen for " + String(i));
+    return;
+  }  
+  #ifdef SERIALVIS
+  //Serial.println("[i] GENERATE ARP: chan: " + String(chanArray[i]));
+  Serial.println("GEN,0," + String(chanArray[i]) );
+  #endif
 
-    //Generate for mode three "REPEATS"
-    //for mode 2, monophonic alt arp different set of patterns
-    if (mode_setting == REPEAT && tot > 2) {
-      //second type of generation for mode 2
-      repeating_sets(i);     
-      return;
-    }
+  captureBuf.setRoot();
+  GenBuf[i]->startNewSet(); 
+  GenBuf[i]->setRoot(captureBuf.getRoot());   
 
-    //Generate for Normal/ chord modes 0 and 1 (also if there's less than 3 notes captured)
-    for (byte j=0; j< tot; j++) {
-      new_note = captureBuf.getCurNote();           
-      #ifdef GENDEBUG
-      Serial.println("[D] GEN new chan" + String(chanArray[i]) + " note: " + String(new_note.pitch) + " type: " + String(genType[i]));  
-      #endif            
-      GenBuf[i]->add(new_note);  
-      if (octave[i] == DJENT) { //need to add some rests first
-        generate_djent(i, 3);
-      }      
-      captureBuf.increment();
-    }  
-
-    if ((tot > 2) && (genType[i] > 0)) {
-      switch(genType[i]) { //no breaks so fall through (intented to have more notes for higher settings)
-      case 9:
-        GenBuf[i]->setVelDrift(3);
-        change_one_octave(i);
-        add_new_note(i,3);
-        change_one_octave(i);
-        add_root_octave_down(i);
+  //First handle some unique setting combos
+  //  1. gen setting is root note only
+  if (genType[i] == 0 ) {
+    if (octave[i] == DJENT ){
+      num_additions = random(2,6); //increase the length of the pattern
+      for (byte k=0; k < num_additions; k++) {
+        generate_djent(i, 1, 3);
         add_root_note(i);
-        add_reverse(i);
-        if(octave[i] == 1) {
-          addOctaves(i);
-        }      
-        change_one_octave(i);
-        add_root_octave_down(i);
-        swap_even(i);       
-        break;
-    
-      case 8: 
-        GenBuf[i]->setVelDrift(2);
-        add_root_note(i);
-        add_root_octave_up(i);
-        add_new_note(i,2);
-        change_one_octave(i);
-        add_reverse(i);
-        if(octave[i] == 1) {
-          addOctaves(i);
-        }
-        add_root_octave_up(i);
-        change_one_octave(i);
-        swap1(i);
-        break;
-      case 7: //shuffle gets applied at the end of a bar
-        GenBuf[i]->setVelDrift(2);
-        add_root_octave_down(i);
-        change_one_octave(i);
-        if(octave[i] == 1) {
-          addOctaves(i);
-        }
-        add_root_octave_up(i);
-        add_reverse(i);        
-        swap_odd(i);
-        break;       
-      case 6:  //extra DIV notes are added
-        GenBuf[i]->setVelDrift(1);
-        add_root_octave_up(i);
-        change_one_octave(i);
-        if(octave[i] == 1) {
-          addOctaves(i);
-        }
-        add_root_octave_down(i);
-        add_reverse(i);
-        swap2(i);   
-        break;
-      case 5: 
-        GenBuf[i]->setVelDrift(1);
-        add_root_octave_up(i);
-        if(octave[i] == 1) {
-          addOctaves(i);
-        }
-        add_reverse(i);
-        swap1(i);        
-        break;
-      case 4:
-        GenBuf[i]->setVelDrift(1);
-        if(octave[i] == 1) {
-          addOctaves(i);
-        }
-        add_reverse(i); 
-        break;
-      case 3:
-        add_root_octave_up(i);
-        swap_odd(i);
-        if(octave[i] == 1) {
-          addOctaves(i);
-        } 
-        break;
-      case 2:
-        swap2(i);
-        swap1(i);        
-        if(octave[i] == 1) {
-          addOctaves(i);
-        } 
-        break; 
-      case 1:  
-        if(octave[i] == 1) {
-          addOctaves(i);
-        }     
-        break;
-      }
+      } 
+      Serial.println("DJENT " +String(i));
+    }  else {         
+      new_note.set(i, captureBuf.getRoot(), 40, false);
+      GenBuf[i]->add(new_note);      
     } 
-   
-    regen_switch[i] = false;
-  } 
+    return;   
+  }
   
+  //for mode 2 we'll do something different entirely
+  // Generate for mode three "REPEATS" style patterns
+  if (mode_setting == REPEAT) {
+    //second type of generation for mode 2
+    repeating_sets(i);     
+    return;
+  }
+
+  //Generate for Normal/ chord modes 0 and 1 (also if there's less than 3 notes captured)
+  for (byte j=0; j< tot; j++) {
+    new_note = captureBuf.getCurNote();           
+    #ifdef GENDEBUG
+    Serial.println("[D] GEN new chan" + String(chanArray[i]) + " note: " + String(new_note.pitch) + " type: " + String(genType[i]));  
+    #endif            
+    GenBuf[i]->add(new_note);  
+    
+    if (octave[i] == DJENT) {
+      for (byte k=0;  k < 3; k++) {
+        if (GenBuf[i]->sendRest()){    
+          GenBuf[i]->add(rest_note);
+        } 
+      }
+    }
+    captureBuf.increment();
+  }    
+
+  if ((tot > 1) && (genType[i] > 0)) {
+    switch(genType[i]) { //no breaks so fall through (intented to have more notes for higher settings)
+    case 10:
+      GenBuf[i]->setVelDrift(3);
+      add_root_octave_up(i);    
+      add_new_note(i,2);
+      change_one_octave(i);
+      add_reverse(i);         
+      
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }  
+      change_one_octave(i);
+      add_root_octave_down(i);     
+      add_new_note(i,3);   
+      swap2(i);        
+    case 9:
+      GenBuf[i]->setVelDrift(3);     
+
+      add_root_octave_down(i); 
+      add_new_note(i,3);     
+      add_reverse(i);      
+
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }      
+      
+      change_one_octave(i);
+      add_root_octave_up(i);      
+      add_new_note(i,2);
+      swap_even(i);    
+      break;
+  
+    case 8: 
+      GenBuf[i]->setVelDrift(3);    
+      add_root_octave_up(i);
+      add_reverse(i);
+
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }      
+
+      add_new_note(i,2);
+      change_one_octave(i);
+      add_root_octave_down(i);
+      swap1(i);
+      break;
+    case 7: //shuffle gets applied at the end of a bar
+      GenBuf[i]->setVelDrift(2);
+      add_root_octave_down(i);
+      add_new_note(i,2);   
+      change_one_octave(i);
+
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }            
+      add_reverse(i);
+      swap_odd(i); 
+      break;       
+    case 6:  //extra DIV notes are added  GENERATIVE_SETTING
+      GenBuf[i]->setVelDrift(2);
+      add_root_octave_up(i);      
+      change_one_octave(i);      
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }
+      add_reverse(i);
+      swap2(i);
+      break;
+    case 5: 
+      GenBuf[i]->setVelDrift(2);     
+      change_one_octave(i);
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }      
+      add_root_octave_down(i);      
+      add_reverse(i); 
+      swap1(i);
+      break;
+    case 4:
+      //swapped order with octave
+      GenBuf[i]->setVelDrift(1);
+      add_root_octave_up(i);
+      swap_odd(i);
+      if(octave[i] == 1) {
+        addOctaves(i);
+      } 
+      break;
+    case 3:
+      //ascending -> decending    
+      GenBuf[i]->setVelDrift(1);
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }      
+      add_reverse(i); 
+      add_root_octave_down(i);
+      break;
+    case 2:
+      swap2(i);
+      swap1(i);        
+      if(octave[i] == 1) {
+        addOctaves(i);
+      } 
+      break; 
+    case 1:  
+      if(octave[i] == 1) {
+        addOctaves(i);
+      }
+      break;    
+    }
+  }   
+  regen_switch[i] = false; 
 }
 
 void check_and_send_note_off(byte i){
-  MidiNote next_note = GenBuf[i]->getCurNote();
-  MidiNote prev_note = GenBuf[i]->getPrevNote();
- 
-  //monophonic mode
-  if (GenBuf[i]->poly == false) { //handle the monophic sequences    
-  
-    MIDI.sendControlChange(midi::AllSoundOff, 0, chanArray[i]);  
-    MIDI.sendNoteOff(prev_note.pitch, 0, chanArray[i]);
-    MIDI.sendNoteOff(next_note.pitch, 0, chanArray[i]);
+  //MidiNote next_note = GenBuf[i]->getCurNote();
+  //MidiNote prev_note = GenBuf[i]->getPrevNote();
+  MidiNote cur_note = GenBuf[i]->getCurNote();
 
-    #ifdef SENDDEBUG
-    Serial.println("[s] curr not off ->sent off. chan " + String(chanArray[i]) + " note: " + String(next_note.pitch) + " chan: " + String(next_note.chan) + " on: " + String(next_note.on));  
-    #endif 
-    GenBuf[i]->setCurNoteOff();
+  MIDI.sendNoteOff(cur_note.pitch, 0, chanArray[i]);
+  GenBuf[i]->setPrevNoteOff();          
+  #ifdef SERIALVIS
+  Serial.println("OFF," +  String(cur_note.pitch) + ",0," +  String(chanArray[i]));
+  #endif
 
-    #ifdef SERIALVIS
-    Serial.println("OFF," +  String(next_note.pitch) + ",0," +  String(chanArray[i]));
-    #endif
-    
-  } else {
-    //polyphonic case 
-    byte choice= random(0,2); //let notes ring out        
-    if (choice == 0) {
-      prev_note = GenBuf[i]->getPrevNote();
-      MIDI.sendNoteOff(prev_note.pitch, 0, chanArray[i]);
-      GenBuf[i]->setPrevNoteOff();          
-      #ifdef SENDDEBUG
-      Serial.println("[s poly] Sent prev off. chan " + String(chanArray[i]) + " note: " + String(prev_note.pitch) + " vel: 0 on:" + String(prev_note.on));  
-      #endif
-      #ifdef SERIALVIS
-      //Serial.println("[n] OFF: chan: " + String(chanArray[i]) + " pitch: " + String(prev_note.pitch) + " vel: 0");
-      Serial.println("OFF," +  String(prev_note.pitch) + ",0," +  String(chanArray[i]));
-      #endif
-    } 
-  }  
+  if (mode_setting == CHORD  && GenBuf[i]->poly ) {
+    cur_note = GenBuf[i]->getChordNote(CHORD_NOTES);
+    MIDI.sendNoteOff(cur_note.pitch, velocity_emphasis(cur_note.vel), chanArray[i]);  
+    GenBuf[i]->setChordNoteOff(CHORD_NOTES);
+  }
+  GenBuf[i]->increment();  //move the play head    
+}
+
+//helper function to temporarily emphasize 
+byte velocity_emphasis(byte vel){
+  if (vel > 80){
+    return vel - 25;
+  } 
+  return vel + 25;
 }
 
 //sends the next note in the buffer and increments the read head for channel index i
-void check_and_send_note_on(byte i){
-  
+void check_and_send_note_on(byte i){  
   MidiNote next_note = GenBuf[i]->getCurNote(); 
-  byte num_chord = 0;
-
+  
   if(next_note.pitch > 0 && next_note.vel > 0) { //only send a valid note
     MIDI.sendNoteOn(next_note.pitch, next_note.vel, chanArray[i]);
-    #ifdef SERIALVIS    
-    Serial.println("ON," +  String(next_note.pitch) + "," + String(next_note.vel) +  "," +  String(chanArray[i]));
-    #endif
     GenBuf[i]->setCurNoteOn();
-    #ifdef SENDDEBUG
-    Serial.println("[s] Sent note on. chan " + String(chanArray[i]) + " note: " + String(next_note.pitch) + " vel: " + String(next_note.vel) + " on: " + String(next_note.on));
-    #endif
-
   }
-
-  //For polyphonic buffers, chord mode occurs for modes 1 and 2
+  //For polyphonic buffers, chord mode occurs for modes 1 and 2, so we should send another note
   if (mode_setting == CHORD && GenBuf[i]->poly){
-    next_note = GenBuf[i]->getPrevNote();
-    MIDI.sendNoteOn(next_note.pitch, next_note.vel, chanArray[i]);
-    #ifdef SERIALVIS
-    //Serial.println("[n] ON: chan: " + String(chanArray[i]) + " pitch: " + String(next_note.pitch) + " vel: " + String(next_note.vel));
-    Serial.println("ON," +  String(next_note.pitch) + "," + String(next_note.vel) +  "," +  String(chanArray[i]));
-    #endif
+    //SUPPORTING ONLY 2 notes currently, so just send 1 extra
+    next_note = GenBuf[i]->getChordNote(CHORD_NOTES);
+    MIDI.sendNoteOn(next_note.pitch, velocity_emphasis(next_note.vel), chanArray[i]);  
+    GenBuf[i]->setChordNoteOn(CHORD_NOTES);
   } 
-  GenBuf[i]->increment();  //move the play head    
+
+  #ifdef SERIALVIS    
+  Serial.println("ON," +  String(next_note.pitch) + "," + String(next_note.vel) +  "," +  String(chanArray[i]));
+  #endif
+  
 }
 
 //Turns off all notes in the buffer regardless of counter, using the getNote() which can accesses the full buffer
@@ -1009,282 +1073,38 @@ void send_all_gen_off(byte i){
   }   
 }
 
-
-
-//--------- MIDI CC functions for specific synths -------------//
-/* The follow are to deliver time based CC changes - based on sine/cose for organic sounding change in parameters
-div_time: time parameter - shoudl be a counter for "time" or clock ticks
-big: - 1 for big drift or 0 for small drive return - the byte to send as the CC value
-*/
-byte drift(byte div_time, byte type, bool big){
-  if (type > 6)
-    type = 6;
-  switch(type){
-    case 1:
-    //for small: max 75, min 15
-      if (big) {
-        return (cos(div_time/3) + cos(div_time/1) + 2) *31;
-      } 
-        return (cos(div_time/3) + cos(div_time/1) + 3) * 15; 
-    case 2:
-    //for small: max 76, min 28
-      if (big) {
-        return (sin(div_time/5) + cos(div_time/3) + 2) * 31;
-      }
-        return (sin(div_time/5) + cos(div_time/3) + 4) * 13; 
-    case 3:
-    //for small: max 78, min 27 
-      if (big) {
-        return (sin(div_time/9) + sin(div_time/4) + 2) *31;
-      }
-      return (sin(div_time/9) + sin(div_time/4) + 4) *13; 
-    case 4:
-    //for small: max 66, min 14
-      if (big) {
-        return (sin(div_time/7) + sin(div_time/5) + cos(div_time/11) + 3) * 22;
-      }
-      return (sin(div_time/9) + sin(div_time/7) + cos(div_time/13) + 4) * 10; 
-    case 5: 
-    //slower and smooth
-    //min 30 max 90 for small; min 0 max 120 for big
-      if (big) {
-        return (cos(div_time/15) + 1) * 60;
-      } 
-      return (cos(div_time/15) + 2) * 30;
-    case 6:
-      if (big) {
-        return (sin(div_time/40) + 1) * 60;
-      } 
-        return (sin(div_time/40) + 2) * 30;
-    default:
-      return 20;
-  }
-}
-
-
-//send a midicc message, values depend on time based changes rather than something set explitly
-void volcaFMCC(){
-  byte cc_attack=0;
-  byte cc_decay =0;
-  byte cc_rate  =0;
-  byte cc_depth =0;
-    
-  if (cc_t_value %2 == 0) {
-    cc_attack = drift(cc_t_value, 2, false); //attack
-    cc_decay  = drift(cc_t_value, 3, false);
-    cc_rate   = drift(cc_t_value, 5, false)-15;
-    cc_depth  = 2*(90 - cc_rate)/3;
-    //Serial.println("SENDING to RATE  " + String(cc_rate));
-    //Serial.println("SENDING to DEPTH  " + String(cc_depth));
-    MIDI.sendControlChange(FM_MOD_ATTACK, cc_attack, VOLCAFMCHANNEL);
-    MIDI.sendControlChange(FM_MOD_DECAY, cc_decay+25, VOLCAFMCHANNEL);
-    MIDI.sendControlChange(FM_LFO_RATE, cc_rate, VOLCAFMCHANNEL);
-    MIDI.sendControlChange(FM_LFO_DEPTH, cc_depth, VOLCAFMCHANNEL);
-
-  } else {
-    cc_attack = drift(cc_t_value, 2, false); //attack
-    cc_decay  = drift(cc_t_value, 1, false);
-    //Serial.println("SENDING to CA DECAY  " + String(cc_decay));
-    MIDI.sendControlChange(FM_CA_ATTACK, cc_attack, VOLCAFMCHANNEL);
-    MIDI.sendControlChange(FM_CA_DECAY, cc_decay+35, VOLCAFMCHANNEL);
-  }  
-}
-
-void NTS1CC(){
-  byte cc_attack=0;
-  byte cc_decay =0;
-  byte cc_rate  =0;
-  byte cc_depth =0;
-  byte cc_res   =0;
-  byte cc_osc   =0;
-
-  if (cc_t_value %2 == 0) {
-    cc_attack = drift(cc_t_value, 1, false) -12; 
-    cc_decay  = drift(cc_t_value, 3,  false) + 40;
-    //Serial.println("SENDING Att " + String(cc_attack) + "  dec " + String(cc_decay));
-    MIDI.sendControlChange(NTS1ATTACK, cc_attack, NTS1CHANNEL);
-    MIDI.sendControlChange(NTS1RELEASE, cc_decay, NTS1CHANNEL);
-
-  } else {    
-    cc_osc   = drift(cc_t_value, 5, false)/2; 
-    cc_rate  = drift(cc_t_value, 6, false)/2; 
-    cc_res    = drift(cc_t_value, 4, false) - 10;
-    //Serial.println("SENDING rate " + String(cc_rate) + "  depth " + String(cc_depth) + " res " + String(cc_res) );
-    MIDI.sendControlChange(NTS1OSCALT, cc_osc, NTS1CHANNEL);
-    MIDI.sendControlChange(NTS1LFORATE, cc_rate, NTS1CHANNEL);
-    MIDI.sendControlChange(NTS1RESONANCE, cc_res, NTS1CHANNEL);
-    
-  } 
-}
-
-void OBNEDarkstarCC(byte channel){
-   
-  byte cc_1_value; 
-  byte cc_2_value; 
-  byte cc_3_value; 
-  byte cc_4_value; 
-  byte cc_5_value;   
-
-
-
-  byte values[] = {0, 5, 32, 64, 122, 64, 32}; //for pictch changes
-  byte values2[] = {0, 100}; //on or off
-
-  byte choice1 = 0;
-  byte choice2 = 0;
-  //designed for OBNE darkstar v3
-  if (channel != 0){
-    return; //assume channel 1 for now
-  }
-
-  switch(genType[channel]){
-    case 0:
-      break;
-    case 1:  
-    case 2:
-      cc_1_value = drift(cc_t_value, 1, true); //decal
-      //Serial.println("CC,15, " + String(cc_1_value) + "," + String(1));
-      MIDI.sendControlChange(15, cc_1_value, 1);
-      break;    
-    case 3:
-    case 4:
-      cc_1_value = drift(cc_t_value, 2, true); // += 46 filter
-      //Serial.println("CC,20 " + String(cc_1_value)+ "," + String(1));
-      MIDI.sendControlChange(20, cc_1_value, 1);
-      break;
-    case 5:
-    case 6:
-      cc_1_value = drift(cc_t_value, 3, false) + 20; //decay
-      cc_2_value = drift(cc_t_value, 4, false) + 20; //filter
-      cc_3_value  = drift(cc_t_value, 6, false) + 40; //slow bitcrush/od
-      //Serial.println(" CC 15 " + String(cc_3_value) + " CC 20 " + String(cc_2_value)+ " CC 19 " + String(cc_3_value)); 
-      MIDI.sendControlChange(15, cc_1_value, 1);
-      MIDI.sendControlChange(20, cc_2_value, 1);
-      MIDI.sendControlChange(19, cc_3_value, 1);
-      break;
-    
-    case 7:
-    case 8:
-
-      choice2 = random(0,3); //chance to change the pitch
-      if (choice2 == 0) {
-         cc_1_value = values[(cc_t_value % 2)+gchoice1]; //cycles between two values       
-      } 
-      choice2 = random(0,3); //chance to change the pitch
-      if (choice2 == 0) {
-        cc_2_value = values[((cc_t_value % 2)+ gchoice1 + 1)%7];
-      }
-      
-      cc_3_value =  drift(cc_t_value, 4, false) + 5; //feedback
-      cc_4_value  = drift(cc_t_value, 6, false) + 30; //slow filter
-
-      MIDI.sendControlChange(16, cc_1_value, 1);
-      MIDI.sendControlChange(17, cc_2_value, 1);
-      MIDI.sendControlChange(21, cc_3_value, 1);
-      MIDI.sendControlChange(20, cc_4_value, 1);
-
-      //Serial.println("            -> CC  " + String(cc_1_value) + " " + String( cc_2_value) + " CC 20 " + String(cc_1_value) + " CC 21 " + String(cc_3_value));
-       
-    break;
-    
-    case 9:
-    case 10:
-      cc_1_value = drift(cc_t_value, 2, true);
-      cc_2_value = drift(cc_t_value, 6, false) + 20;
-
-      choice1 = random(0,6);
-      if(choice1 == 0){
-        cc_3_value  = drift(cc_t_value, 4, false);  //a bit chaotic because of time stuff
-      }
-
-      //Serial.println("CC 15 " + String(cc_1_value) + " CC 21 " + String(cc_2_value) + " CC 18 " + String(cc_3_value));
-      MIDI.sendControlChange(15, cc_1_value, 1);
-      MIDI.sendControlChange(21, cc_2_value, 1);
-      MIDI.sendControlChange(18, cc_3_value, 1); //lag
-
-      break;
-    case 11:
-      //cc_1_value = drift6(cc_t_value, true); // freeze on and off
-
-      choice1 = random(0,6);
-      choice2 = random(0,8);
-
-      if (choice1 == 0){
-        cc_1_value = values2[cc_t_value % 2];
-      }
-
-      cc_2_value = drift(cc_t_value, 3, false) + 20;
-      cc_3_value = drift(cc_t_value, 6, false) + 30;
-      cc_4_value = drift(cc_t_value, 5, false) + 20;
-      if (choice2 == 0){
-        cc_5_value  = drift(cc_t_value, 4, false)+ 10;      //todo test this one
-      }
-      //Serial.println("CC 24 " + String(cc_1_value) + ", CC 20 " + String(cc_2_value) + ", CC 19 " + String(cc_3_value) + ", CC 18 " + String(cc_5_value));
-      MIDI.sendControlChange(24, cc_1_value, 1);
-      MIDI.sendControlChange(20, cc_2_value, 1);
-      MIDI.sendControlChange(19, cc_3_value, 1);
-      MIDI.sendControlChange(15, cc_4_value, 1);
-      MIDI.sendControlChange(18, cc_5_value, 1);
-      break;
-  }
-}
-
-//handle time-based cc changes. This function ticks the cc time
-// don't want to use midi note tick values because of the jump fro 90 to 0, I'd rather it be more continuous
-void send_midi_cc(){
-
-  if (div_count % CC_FREQ == 0) {
-    #ifdef VOLCAFM
-    volcaFMCC();
-    #endif
-
-    #ifdef NTS-1
-    NTS1CC();
-    #endif
-
-    #ifdef MIDICC
-    cc_t_value += 1; //time tracker
-    #endif
-  }
-}
-
 //determine if an extra note should be sent as an addition to the current div pattern
 bool send_extra_note(byte chan_index){
-  if (mode_setting < 2) {
-    if(genType[chan_index] > GENERATIVE_SETTING && div_count % (div_setting[chan_index]/2) == 0){
-      //number of extra notes based on the alg setting. Higher setting is more notes
-      byte freq  = (GENERATIVE_SETTING +3 ) - (genType[chan_index] - GENERATIVE_SETTING); 
-      byte chance = random(0, freq);
-      if (chance == 0){
-        return true;
-      }
+  bool sendnote = false;  
+  if (div_setting[chan_index] % 2 == 0) {    
+    if (div_count % (div_setting[chan_index]/2) == 0 && genType[chan_index] > EXTRANOTE){   
+       //Serial.println("mod  - 2 " + String(div_setting[chan_index]));
+       sendnote =  GenBuf[chan_index]->sendExtraNote();
     }
-  } else {
-     if(genType[chan_index] > GENERATIVE_SETTING && div_count % (div_setting[chan_index]/2) == 0){
-      //number of extra notes based on the alg setting. Higher setting is more notes
-      byte freq  = (GENERATIVE_SETTING + 4 ) - (genType[chan_index] - GENERATIVE_SETTING); 
-      byte chance = random(0, freq);
-      if (chance == 0){
-        return true;
-      }
+
+  }  else if (div_setting[chan_index] % 3 == 0){ 
+    if (div_count % (div_setting[chan_index]/3) == 0 && genType[chan_index] > EXTRANOTE){   
+       //Serial.println("mod - 3" + String(div_setting[chan_index]) );
+       sendnote =  GenBuf[chan_index]->sendExtraNote();
     }
-  }
-  return false;   
+  }  
+  return sendnote;
 }
 
 //a bar is defined by the current number of notes in the generated buffer
 void bar_regenerate(byte chan_index){
   byte temp_bars;
-  ;
+  byte choice;
   if (regen[chan_index] == ARP && mode_setting < 2) { 
     if (genType[chan_index] > GENERATIVE_SETTING ) {          
       temp_bars = GenBuf[chan_index]->getBars();
-      //in the case of constant regeneration of the sequence, we don't want to do this every single note, rather it should be after a full set of notes
+      //in the case of constant regeneration of the sequence, we don't want to do this every single note
+      // rather it should be after a full set of notes
       if (regen_bars[chan_index] != temp_bars) {   
         regen_bars[chan_index] = temp_bars;
         if((regen_bars[chan_index] % REGEN_FACTOR == 0)){          
           #ifdef GENDEBUG
-          Serial.println("[g] REGENERATE " + String(bars) + " " + String(regen_bars[chan_index] % REGEN_FACTOR)+ " div count " + div_count);
+          Serial.println("[g] REGENERATE " + String(regen_bars[chan_index] % REGEN_FACTOR)+ " div count " + div_count);
           #endif 
           digitalWrite(arp_leds[chan_index], HIGH);
           arp_leds_on[chan_index] = true;
@@ -1293,7 +1113,21 @@ void bar_regenerate(byte chan_index){
           //Serial.println("[i] REGEN: chan: " + String(chanArray[i]) + " bars: " + String(regen_bars[i]));
           Serial.println("REGEN," + String(regen_bars[chan_index]) + "," + String(chanArray[chan_index]));
           #endif
-          genShuffle(chan_index);         
+          
+          GenBuf[chan_index]->mutateExtraNote();
+          GenBuf[chan_index]->mutateRestNote();
+          #ifdef INVERSIONS
+          choice = random(0,3);
+          if (choice == 0 && INVERSIONS){
+            //genShuffle(chan_index);
+            generate_interval_shift(chan_index);
+          } else {
+            genShuffle(chan_index);
+            //generate_interval_shift(chan_index);
+          }
+          #else
+          genShuffle(chan_index);
+          #endif
         }
       }
     }
@@ -1305,14 +1139,14 @@ void send_note(){
   MidiNote next_note;
   MidiNote prev_note;
   byte tot =  captureBuf.getCurNoteNum(); 
-  
-  
+    
   //Send the next note from each buffer
   for(byte i=0; i< MAX_CHANNELS; i++){      
     if (note_off_switch[i]){ // in the case where a channel has switched to clock, turn notes off for this channel
       #ifdef SENDDEBUG
       Serial.println("[D] All Notes Off (main)" + String(chanArray[i]));
       #endif
+       
       //send_all_gen_off(i);
       MIDI.sendControlChange(midi::AllNotesOff, 0, 0);
       MIDI.sendControlChange(midi::AllSoundOff, 0, chanArray[i]);
@@ -1320,7 +1154,7 @@ void send_note(){
     }  
 
     if (regen[i] == CLOCK || tot ==0) {
-      //don't send a note when there's no notes or this sequence is set to clock
+      //don't send a note when there's no notes or this sequence is set to clock       
       continue;
     }
 
@@ -1330,22 +1164,19 @@ void send_note(){
     }   
       
     //TODO handle Mode 2 extra notes?
-    if (div_count % div_setting[i] == 0 ||   send_extra_note(i) ){//we're at the start rhythm pattern (defined by div_setting) and ready to send regular note      
+    if (div_count % div_setting[i] == 0 || send_extra_note(i)){//we're at the start rhythm pattern (defined by div_setting) and ready to send regular note      
     
       //make sure all the previous notes are off
       check_and_send_note_off(i); 
       
       //generate the notes for the generate buffer
       //     this must be done here because notes should be turned off before the buffer is shuffled.
-      if (gen_switch){
-        generate();
-        gen_switch = false;
+      if (regen_switch[i]){
+        generate(i);
+        regen_switch[i] = 0;        
       }
-            
-      //if (mode_setting < 2) { very little that is random in mode 2
-        bar_regenerate(i);
-      //}
-
+      bar_regenerate(i); //logic to regenerate encapsuated within
+      
       //send the next note
       check_and_send_note_on(i); 
     }   
@@ -1366,7 +1197,7 @@ void blink_leds(byte tick){
 
   for (byte i=0; i < MAX_CHANNELS; i++ ){
     //make sure the arp LEDs are off
-    if (tick % SIXTEENTHNOTE == 0 && arp_leds_on[i]){
+    if (tick % SIXTEENTH == 0 && arp_leds_on[i]){
       digitalWrite(arp_leds[i], LOW);
       arp_leds_on[i] = false;
     }
@@ -1521,7 +1352,7 @@ void play_off_event(){
     active_note_count = 0;
     play_switch = false;
     send_stop = true;
-    gen_switch = false;
+    
     for(byte i=0; i<MAX_CHANNELS; i++){
       //if(regen[i] == CLOCK){
       //  continue;
@@ -1559,8 +1390,9 @@ void check_pots(){
       //Serial.println("[i] SET: chan: " + String(chanArray[i]) + " mutation: " + String(temp_read));
       Serial.println("SET ALG," + String(temp_read)+ "," + String(chanArray[i]));
       #endif
+      Serial.println("[i] SET: chan: " + String(chanArray[i]) + " mutation: " + String(temp_read));
       genType[i] = temp_read;
-      gen_switch = true;
+      
       regen_switch[i] = true;
     }
     temp_read = analogRead(div_pots[i]); 
@@ -1577,7 +1409,7 @@ void check_pots(){
       #endif
 
       div_setting[i] = div_reference[divs_read];
-      gen_switch = true;
+      
       digitalWrite(div_leds[i], LOW);
     }
   }
@@ -1593,13 +1425,13 @@ void init_check(){
     play_switch = true;
     send_start = true;
     reset_switch = false;
-    gen_switch = true;
+    
   } else {
     //Serial.println("[i] Initializing... PLAY OFF ");
     play_switch = false;
     send_stop = true;
     reset_switch = false;
-    gen_switch = false;
+    
   }
   if (digitalRead(SWITCH_0L_RESET) == LOW){
     //Serial.println("[i] Initializing... PLAY OFF, RESET switch is ON ");
@@ -1607,7 +1439,7 @@ void init_check(){
     play_switch = false;
     send_stop = true;
     reset_switch = true;
-    gen_switch = false;
+    
   } else {
     reset_switch = false;
   }
@@ -1645,7 +1477,7 @@ void check_switches(){
         #endif
         note_off_switch[i] = false; 
         regen_switch[i] = true;
-        gen_switch = true;
+        
         regen[i] = ARP;
       }      
       local_arp_on = true;      
@@ -1669,7 +1501,7 @@ void check_switches(){
         #endif
         note_off_switch[i] = false;
         regen_switch[i] = false;
-        gen_switch = false;
+        
         regen[i] = FREEZE;
       }
       local_arp_on = true;  
@@ -1687,7 +1519,7 @@ void check_switches(){
           Serial.println("SET OCT,1," +String(chanArray[i]));
           #endif
           regen_switch[i] = true;
-          gen_switch = true;
+          
         } 
       }
 
@@ -1700,7 +1532,7 @@ void check_switches(){
           #endif
 
           regen_switch[i] = true;
-          gen_switch = true; 
+          
         }
         octave[i] = 0;
        }      
@@ -1713,7 +1545,7 @@ void check_switches(){
           Serial.println("SET OCT,2," + String(chanArray[i]));
           #endif
           regen_switch[i] = true;
-          gen_switch = true;
+          
         } 
         octave[i] = 2;
       }
@@ -1723,12 +1555,11 @@ void check_switches(){
   tempL = digitalRead(SWITCH_MODE_1);
   tempR = digitalRead(SWITCH_MODE_3);
 
-
   //Set a global mode for slightly different functionality
   if (tempL && tempR == HIGH){
     if (mode_setting != CHORD) {
       mode_setting = CHORD;
-      gen_switch = true;
+      
       #ifdef SERIALVIS
       Serial.println("SET MODE,MODE 2 (CHORD),0");
       #endif
@@ -1737,7 +1568,7 @@ void check_switches(){
   } else if (tempL == LOW) {
     if (mode_setting != NORMAL) {
       mode_setting = NORMAL;
-      gen_switch = true;
+      
       #ifdef SERIALVIS
       Serial.println("SET MODE,MODE 1 (NORMAL),0");
       #endif
@@ -1747,7 +1578,7 @@ void check_switches(){
   } else if (tempR == LOW){
     if (mode_setting != REPEAT) {
       mode_setting = REPEAT;
-      gen_switch = true;
+      
       #ifdef SERIALVIS
       Serial.println("SET MODE,MODE 3 (REPEATS),0");
       #endif

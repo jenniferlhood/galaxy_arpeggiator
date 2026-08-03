@@ -1,6 +1,4 @@
-#define BUFFER_SIZE 12
-#define MAX_SEQUENCE_SIZE 96
-
+#include "galaxy_common.h"
 
 class MidiNote {
   public:
@@ -44,31 +42,52 @@ class NoteBuffer {
     MidiNote getPrevNote();
     MidiNote getPreviNote(byte i);
     MidiNote getAbsPrevNote();
+    MidiNote getChordNote(byte k); //gets a second note from the buffer determined by k values (which change at generation time)
+
     byte getCurNoteNum();
     byte getMaxNoteNum();
-    void increment();
-    void setRoot();
-    void setNotePitch(byte i, byte pitch);
-    void setNoteVel(byte i, byte vel);
     byte getNoteVel(byte i);
     byte getRoot();
     byte getBars(); 
-    void setRoot(byte pitch);
-    void restart();
+    
+
+    void setConstants();
     void setNoteOff(byte index);
+    void increment();
+
     void setCurNoteOn();
     void setCurNoteOff();
     void setPrevNoteOff();
+
+    void setChordNoteOn(byte chord_num);
+    void setChordNoteOff(byte chord_num);
+
+    
+    bool sendExtraNote();
+    void IncExtraNoteCounter();
+    void mutateExtraNote();
+    bool sendRest();
+    void IncRestCounter();
+    void mutateRestNote();
+
     void startNewSet();
-    void resetAll();
-    void debug();
+    void setRoot();
+    void pickNewRoot();
+    void setNotePitch(byte i, byte pitch);
+    void setNoteVel(byte i, byte vel);
+    void setRoot(byte pitch);
+    
+    void setVelDrift(byte setting); //by default there will be a low drift. setting means to set it to a high drift
+    void setOctDrift(bool setting);
+        
     void shuffle();
     void replace(MidiNote note);
     void replace(MidiNote note, byte index);
     void swapNotes(byte index1, byte index2);
    
-    void setVelDrift(byte setting); //by default there will be a low drift. setting means to set it to a high drift
-    void setOctDrift(bool setting);
+    void restart();    
+    void resetAll();
+    void debug();
 
   private:
     byte channel;
@@ -80,19 +99,28 @@ class NoteBuffer {
     byte type; //0: small buffer, 1: large buffer
     byte bars; 
     byte root_note; //the pitch of the lowest note of the active set of notes in the buffer
-    
+
+    byte extra_note_counter;
+    byte rest_counter;
+    byte extra_note_index; //extra note index into the array of patterns
+    T rest_pattern;
+    T extra_note_pattern;
+    T extra_note_pattern_ref[NUM_PATTERNS] = {p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19};
+
     //automate variation over time
     // as notes are added to the buffer we can add automations to create variation and a natural feel
     int vel_drift;
     byte dr_ampl; //the amount the velocity should drift over the buffer
     byte dr_speed; //the speed at which it drifts
     byte dr_base; 
-    byte oct_drift;
+    byte oct_drift; //currently unused
+    byte k1; //the second note for the "chord". For chosing a the second note in the sequence - lets fix this at generation time.
+    byte k2; //the third note of the "chord" 
+    
     bool oct_setting;
 
     MidiNote buffer[MAX_SEQUENCE_SIZE];
 };
-
 
 //initialize the buffer with max number of notes
 NoteBuffer::NoteBuffer(byte _type, byte _channel, bool _poly) 
@@ -102,13 +130,28 @@ NoteBuffer::NoteBuffer(byte _type, byte _channel, bool _poly)
   } else { 
     max_note_num = MAX_SEQUENCE_SIZE;
   } 
+  setConstants();
+}
 
+// Set some constants for the buffer that won't change during note generation
+void NoteBuffer::setConstants(){
   vel_drift = 0;
   oct_drift = 0;
+  extra_note_counter = 1;  //position in the extra note pattern
   
+  k1 = random(1, BUFFER_SIZE/4);
+  k2 = random(2, BUFFER_SIZE/3);
+
+  //Try not to pick two of the same note
+  if (curr_note_num > 3 && k2==k1) {
+    k2 = random(1, curr_note_num);
+  }
+  
+  extra_note_pattern = extra_note_pattern_ref[random(0, NUM_PATTERNS)];
+  rest_pattern = extra_note_pattern_ref[random(0, NUM_PATTERNS)];
   setVelDrift(0);
-  setOctDrift(true);
 }
+
 
 //add a note to the buffer, return the index
 //circular buffer means we overwrite when it gets to the max
@@ -224,7 +267,69 @@ void NoteBuffer::setVelDrift(byte setting){
 }
 
 void NoteBuffer::setOctDrift(bool setting) {
+}
 
+void NoteBuffer::IncExtraNoteCounter(){
+  extra_note_counter = (extra_note_counter + 1) % NOTE_COUNTER;
+}
+//based on the extra_note_pattern (binary pattern) decide if we should send an extra note or not
+bool NoteBuffer::sendExtraNote(){  
+  bool sendnote = bitRead(extra_note_pattern, extra_note_counter);
+  IncExtraNoteCounter();
+  return sendnote;  
+}
+void NoteBuffer::mutateExtraNote(){
+  //Serial.print("mutate " + String(extra_note_pattern ));
+  extra_note_pattern = bitWrite(extra_note_pattern, random(8), random(1));
+  //Serial.print(" to " + String(extra_note_pattern ));
+}
+
+void NoteBuffer::IncRestCounter(){
+  rest_counter = (rest_counter + 1) % REST_COUNTER;
+}
+//based on the extra_rest_pattern (binary pattern) decide if we should insert a rest
+bool NoteBuffer::sendRest(){  
+  bool sendrest = bitRead(rest_pattern, rest_counter);
+  //Serial.println(" " + String(rest_pattern) + " " + String(rest_counter) + " " + String(sendrest));
+  IncRestCounter();
+  return sendrest;  
+}
+void NoteBuffer::mutateRestNote(){
+  //this works only for patterns 8 bits long 
+  rest_pattern = bitWrite(rest_pattern, random(8), random(1));
+}
+
+//Returns a note from the buffer determined by the value K 
+// K refers to k1 or k2 which is fixed at generation time
+MidiNote NoteBuffer::getChordNote(byte k) {
+  if (k == 2) {
+    return getPreviNote(k2);
+  }
+  return getPreviNote(k1);
+}
+
+void NoteBuffer::setChordNoteOn(byte k) {
+  byte pos = 0;
+  if (k == 3) {
+    pos = (cur_pos + ((read_offset + curr_note_num - k2) % curr_note_num)) % max_note_num;
+    buffer[pos].on = true;    
+  } else {
+    pos = (cur_pos + ((read_offset + curr_note_num - k1) % curr_note_num)) % max_note_num;
+  }
+  buffer[pos].on = true;    
+  return;
+}
+
+void NoteBuffer::setChordNoteOff(byte k) {
+  byte pos = 0;
+  if (k == 2) {
+    pos = (cur_pos + ((read_offset + curr_note_num - k2) % curr_note_num)) % max_note_num;
+    buffer[pos].on = false;    
+  } else {
+    pos = (cur_pos + ((read_offset + curr_note_num - k1) % curr_note_num)) % max_note_num;
+  }
+  buffer[pos].on = false;    
+  return;
 }
 
 //used to steal the root note from the capture buffer
@@ -264,6 +369,27 @@ void NoteBuffer::setRoot(){
     root_note = 0;
 }
 
+void NoteBuffer::pickNewRoot(){
+  if (curr_note_num == 0){
+    return;
+  }
+  if (root_note == 0) {
+    setRoot();
+  }
+  for (byte i=0; i< curr_note_num; i++) {
+    byte pos = (cur_pos + i) % max_note_num;
+    if (buffer[pos].pitch != root_note % 12) {
+      
+      root_note = buffer[pos].pitch;
+      if (root_note > 65) {
+        root_note -= 24;
+      }
+      Serial.println("new root " + String(root_note));
+      return;
+    }
+  }  
+}
+
 MidiNote NoteBuffer::getNote(byte i){
  return getNote(i, false);
 }
@@ -288,6 +414,7 @@ MidiNote NoteBuffer::getCurNote(){
   return new_note;
 }
 
+//increment the read head and also keep track of how many times (bars) the full loop has occured
 void NoteBuffer::increment(){
   read_offset = ((read_offset + 1) % curr_note_num) % max_note_num;
   if (read_offset == 0) {    
@@ -304,7 +431,7 @@ MidiNote NoteBuffer::getPrevNote(){
   return new_note;
 }
 
-//gets the previous note (one behind read_offset, relative to cur_pos) 
+//gets the ith previous note (behind read_offset, relative to cur_pos) 
 MidiNote NoteBuffer::getPreviNote(byte i){ 
   byte pos = (cur_pos + ((read_offset + curr_note_num - i) % curr_note_num)) % max_note_num;
   //Serial.println("PREV positions: " + String(buffer[pos].pitch) + " pos " + String(pos) + " cur_pos " + String(cur_pos) + " read_offset " + String(read_offset) + " cur_note_num " + String(curr_note_num) + " " +String ((read_offset - 1) % curr_note_num));
@@ -363,6 +490,7 @@ void NoteBuffer::resetAll(){
     buffer[i].chan = channel;
     buffer[i].on = false;
   }
+  setConstants();
 }
 
 //restart the position of the read head to the current position 
