@@ -35,7 +35,7 @@ byte octave[MAX_CHANNELS] = {0}; //saved from the second set of switches
 bool arp_leds_on[MAX_CHANNELS] = {0}; //to assist in blinking LEDS for some reasonable amount of time. State is on or off.
 
 //convenience arrays for checking the state of switches, or to lookup numeric values
-byte div_reference[MAX_DIVS] = {TWOWHOLENOTES, WHOLENOTE, HALFNOTE, QUARTERNOTE, EIGHTHNOTE, SIXTEENTH, D_HALF, WHOLENOTE_T, D_QUARTER, HALF_T, D_EIGHT, QUARTER_T, EIGHT_T };
+byte div_reference[MAX_DIVS] = {TWOWHOLENOTES, WHOLENOTE, HALFNOTE, QUARTERNOTE, EIGHTHNOTE, SIXTEENTH, D_HALF, WHOLENOTE_T, D_QUARTER, HALF_T, QUARTER_T, EIGHT_T, SIXTEENTH_T };
 byte gen_pots[MAX_CHANNELS] = {ALG_POT_1, ALG_POT_2, ALG_POT_3, ALG_POT_4};
 byte div_pots[MAX_CHANNELS] = {DIV_POT_1, DIV_POT_2, DIV_POT_3, DIV_POT_4};
 byte regen_switches[MAX_CHANNELS] = {SWITCH_1_REGEN,SWITCH_2_REGEN,SWITCH_3_REGEN,SWITCH_4_REGEN};
@@ -113,7 +113,12 @@ void setup(){
   MIDI.setHandleNoteOff(onNoteOffCapture);
   MIDI.setHandleActiveSensing(onActiveSensing);
   MIDI.setHandleAfterTouchChannel(onTouch);
+  MIDI.setHandleClock(onClock);
   randomSeed(13);
+}
+
+void onClock() { 
+  Serial.println("Clock");
 }
 
 void set_tempo(){
@@ -134,9 +139,9 @@ void set_tempo(){
     tempo = temp_read << 2;    
     tempo_delay =  5000.0/tempo;
     
-    #ifdef SERIALVIS
+    //#ifdef SERIALVIS
     Serial.println("TEMPO," + String(tempo) + ",0"); 
-    #endif
+    //#endif
     
     #ifdef MIDICLOCKCOMMAND    
     //Since tempo is always a multiple of 4, we can transmit higher tempo values if we use this last bit
@@ -420,15 +425,23 @@ void repeating_sets(byte chan_index) {
   byte freq = random(2,6); //how often to add emphasis
 
   switch(genType[chan_index]){
-    case 9:
+    case 10:
       repeat_alg7(chan_index, 3 + 3*add_repeats);
+      if (octave[chan_index] == 1 ){
+        change_one_octave(chan_index);
+        change_one_octave(chan_index);
+      }
+      break;
+    case 9:
+      repeat_alg7(chan_index, 2 + 2*add_repeats);
       if (octave[chan_index] == 1 ){
         change_one_octave(chan_index);
       }
       break;
     case 8:
-      repeat_alg7(chan_index, 2 + 2*add_repeats);
-      if (octave[chan_index] == 1 ){
+      repeat_alg6(chan_index, 2 + 3*add_repeats);
+      if (octave[chan_index] == 1 ) {
+        change_one_octave(chan_index);
         change_one_octave(chan_index);
       }
       break;
@@ -441,6 +454,7 @@ void repeating_sets(byte chan_index) {
     case 6:
       repeat_alg5(chan_index, 3 + 3*add_repeats); 
       if (octave[chan_index] == 1 ) {
+        change_one_octave(chan_index);
         change_one_octave(chan_index);
       }
       break;
@@ -766,11 +780,6 @@ void generate_djent(byte chan_index, byte djentmin, byte djentmax){
   }
 }
 
-
-void add_rest_by_pattern(){
-
-}
-
 //this is a different way to add rests than djent. Djent always adds a random number of rests between every note
 // Here we don't always want to add rests - so the chance can be used when this is called
 void add_rests(byte chan_index, byte restiness){
@@ -834,7 +843,6 @@ void generate(byte i){
 
   //Check if no generation is needed for this channel
   if (regen[i] == CLOCK ||  regen[i] == FREEZE || (regen_switch[i] == false )){
-    Serial.println("No gen for " + String(i));
     return;
   }  
   #ifdef SERIALVIS
@@ -897,7 +905,6 @@ void generate(byte i){
       add_new_note(i,2);
       change_one_octave(i);
       add_reverse(i);         
-      
       if(octave[i] == 1) {
         addOctaves(i);
       }  
@@ -907,16 +914,13 @@ void generate(byte i){
       swap2(i);        
     case 9:
       GenBuf[i]->setVelDrift(3);     
-
       add_root_octave_down(i); 
-      add_new_note(i,3);     
+      add_new_note(i,4);     
       add_reverse(i);      
-
+      change_one_octave(i);
       if(octave[i] == 1) {
         addOctaves(i);
       }      
-      
-      change_one_octave(i);
       add_root_octave_up(i);      
       add_new_note(i,2);
       swap_even(i);    
@@ -925,8 +929,8 @@ void generate(byte i){
     case 8: 
       GenBuf[i]->setVelDrift(3);    
       add_root_octave_up(i);
+      add_new_note(i,2);   
       add_reverse(i);
-
       if(octave[i] == 1) {
         addOctaves(i);
       }      
@@ -941,25 +945,27 @@ void generate(byte i){
       add_root_octave_down(i);
       add_new_note(i,2);   
       change_one_octave(i);
-
       if(octave[i] == 1) {
         addOctaves(i);
       }            
+      add_root_octave_down(i);
       add_reverse(i);
       swap_odd(i); 
       break;       
     case 6:  //extra DIV notes are added  GENERATIVE_SETTING
       GenBuf[i]->setVelDrift(2);
-      add_root_octave_up(i);      
-      change_one_octave(i);      
+      add_root_octave_up(i);
+      add_new_note(i,2);               
       if(octave[i] == 1) {
         addOctaves(i);
       }
       add_reverse(i);
+      change_one_octave(i);
       swap2(i);
       break;
     case 5: 
       GenBuf[i]->setVelDrift(2);     
+      add_new_note(i,3);
       change_one_octave(i);
       if(octave[i] == 1) {
         addOctaves(i);
@@ -972,10 +978,12 @@ void generate(byte i){
       //swapped order with octave
       GenBuf[i]->setVelDrift(1);
       add_root_octave_up(i);
-      swap_odd(i);
       if(octave[i] == 1) {
         addOctaves(i);
       } 
+      add_reverse(i); 
+      change_one_octave(i);
+      swap_odd(i); 
       break;
     case 3:
       //ascending -> decending    
@@ -998,6 +1006,11 @@ void generate(byte i){
         addOctaves(i);
       }
       break;    
+    }
+    if (octave[i] == DJENT){
+      if (random(2)){
+        GenBuf[i]->add(rest_note);
+      }
     }
   }   
   regen_switch[i] = false; 
@@ -1387,10 +1400,9 @@ void check_pots(){
       arp_leds_on[i] = true;
 
       #ifdef SERIALVIS
-      //Serial.println("[i] SET: chan: " + String(chanArray[i]) + " mutation: " + String(temp_read));
       Serial.println("SET ALG," + String(temp_read)+ "," + String(chanArray[i]));
       #endif
-      Serial.println("[i] SET: chan: " + String(chanArray[i]) + " mutation: " + String(temp_read));
+      
       genType[i] = temp_read;
       
       regen_switch[i] = true;
