@@ -2,7 +2,7 @@
 #include "GalaxyCommon.h"
 //CUSTOMIZATION SETTINGS
 
-//#define SERIALVIS //to use with my python serial visualizer. It logs specific messages to serial out.
+#define SERIALVIS //to use with my python serial visualizer. It logs specific messages to serial out.
 //#define SNIFF //To intercept and log any midi messages observed by the arduino on the 5-pin midi input
 
 //----- Device specific midi settings
@@ -11,16 +11,14 @@
 //#define MIDICLOCKCHAN   1   //channel for the midi cc tempo command
 //#define MIDICLOCKNUMBER 94 //cc number for the tempo command
 
-#define SEED 8 //change it occasionally for more variety
+#define SEED 13 //change it occasionally for more variety
 
 //Device specific options for parameter mutation via midi cc
-//#define MIDICC //send midicc on channel 1 - this is for effect pedals that accept midi CC like the OBNE Darkstar v3
+#define MIDICC //send midicc on channel
+
 #define CC_FREQ QUARTERNOTE
 
 //#define INVERSIONS //do do melodic inversions on occasion
-
-
-
 
 //#define CAPTUREDEBUG
 //#define PLAYDEBUG
@@ -32,10 +30,42 @@
 //#define SEQDEBUG
 
 //change these if a midi device uses a fixed channel
-#define CHAN1 10
-#define CHAN2 11
-#define CHAN3 12 //polyphonic chanel
-#define CHAN4 12 //polyphonic channel
+#define VOLCADRUM_CHAN 16
+#define ALESIS_CHAN 2
+#define PEDAL_CHAN 1
+#define MOOG_CHAN 10
+#define VOLCA_FM_CHAN 12
+#define MINILOGUE_CHAN 13
+
+
+#define DRUM_CHAN VOLCADRUM_CHAN
+#define MIDICC_CHAN VOLCADRUM_CHAN
+
+//Buffer uses the CHAN* references to send midi notes, they are set here.
+#define CHAN1 MOOG_CHAN    //0
+#define CHAN2 VOLCA_FM_CHAN //1
+#define CHAN3 MINILOGUE_CHAN  //2
+#define CHAN4 DRUM_CHAN  //3
+
+#define GLITCH_INDEX 1
+#define GLITCH
+#define GLITCH_MAX 6
+
+#define USEDRUM //defines for when a channel is a drum channel
+#define VOLCADRUM
+
+
+#define CAPTURE 0
+#define NOTE_MONOPHONIC 1
+#define NOTE_POLYPHONIC 2
+
+#ifdef USEDRUM
+#define DRUM_BASS 3
+#define DRUM_SNARE 4
+#define DRUM_HH 5
+#define DRUM_OTHER 6
+#endif
+
 
 //Defines for the Digital analog input pins for three-way SPDT switches. The pin # mapping depends on how Arduino unit is wired up to the switches and pots
 #define SWITCH_0L_RESET   50  // play or reset (middle is stop)
@@ -82,13 +112,13 @@
 #define LED_DIV_3 27
 #define LED_ARP_4 22
 #define LED_DIV_4 25
-#define PIN_LED_TEMPO     30
-#define PIN_LED_PLAYING   6
+#define PIN_LED_TEMPO 30
+#define PIN_LED_PLAYING 6
 
 //Generative parameters
 #define OCTAVECHANGE 53 //note that determines if octaves added higher or lower (midi note ranges from 21 to 127, but notes higher than 115 often sound kinda bad)
 
-#define REGEN_FACTOR 2 //how many arps before a regen/shuffle
+#define REGEN_FACTOR 6 //how many arps before a regen/shuffle
 //the reading from the algorithm pot that determines if "more randomness" is needed
 // a design choice of the regen box is that when the knobs are turned up, more randomness is introduced
 
@@ -96,23 +126,29 @@
 #define GENERATIVE_SETTING 6
 
 #define EXTRANOTE 6
+#define MAX_SWITCHES 4 //based on number of actual different per channel switches
 
-//not to be changed - based on physical build! My unit has only 4 output channels!!
+
+#ifdef USEDRUM
+#define MAX_CHANNELS 7
+#else
 #define MAX_CHANNELS 4
-
+#endif
 //change if you need more rhythmic time divisions or generative algorithms. These determine the maximum number read from the potentiometers
-#define MAX_DIVS  13
+
 #define MAX_ALG   11
 
 #define CHORD_NOTES 2 //Notes in a chord for chord mode
-
 #define MAX_REPEATS 4  //for constructing MODE2 algortithms
+
+#define RESTINESS 3 //random chance to add more rests than baseline (for longer pauses)
 
 //TODO: testing which kinds of divisions are more useful musically
 // - currently experimenting
+#define MAX_DIVS  12
 #define THIRTYSECOND        (3)
-#define SIXTEENTH           (6) //8
-#define EIGHTHNOTE          (SIXTEENTH   *2) //6
+#define SIXTEENTH           (6) 
+#define EIGHTHNOTE          (SIXTEENTH   *2) //
 #define QUARTERNOTE         (EIGHTHNOTE  *2) //4
 #define HALFNOTE            (QUARTERNOTE *2) //2
 #define WHOLENOTE           (HALFNOTE    *2) //0
@@ -155,4 +191,48 @@
 #define DJENT   2
 
 
+//midi CC for controlling drum parameters
+#define P1ATT 19
+#define P1REL 20
+#define P1MODMNT 16
+#define P1MODRATE 17
+#define P1SEND 103
+#define P1PAN 109
 
+#define P2ATT 28
+#define P2REL 29
+#define P2MODMNT 25
+#define P2MODRATE 26
+#define P2SEND 104
+#define P2PAN 110
+
+#define P3ATT 51
+#define P3REL 51
+#define P3MODMNT 48
+#define P3MODRATE 49
+#define P3SEND 105
+#define P3PAN 111
+
+#define P4ATT 60
+#define P4REL 61
+#define P4MODMNT 57
+#define P4MODRATE 58
+#define P4SEND 106
+#define P4PAN 112
+
+#define P5ATT 85
+#define P5REL 86
+#define P5MODMNT 82
+#define P5MODRATE 83
+#define P5SEND 107
+#define P5PAN 113
+
+#define P6ATT 99
+#define P6REL 100
+#define P6MODMNT 96
+#define P6MODRATE 97
+#define P6SEND 108
+#define P6PAN 114
+#define VDECAY 117
+#define VBODY 118
+#define VTUNE 119

@@ -1,5 +1,28 @@
 # GALAXY dev log and TODO
 
+## oct 2026
+- experimenting with "glitch" functionality (inspired by glitch pedals and the delusion that midi can do it too). It's still evolving.
+
+## sept 20206
+- fixed the way rests are determined (there was a bug in this)
+- fixed a bug in chord mode where a 0 pitch note wasn't stopped from being sent (this should be a rest, no "ON" message with 0 pitch should be sent)
+- Dynamic note buffers heap memory: lives for the life of power on - no need to grow or shrink. I know it is not recommended for arduino But this cuts memory reserved globals by half. And I am not managing allocations for the duration of the the session so it should be fine.
+- Note buffers have #defined types to use to specify the buffer type (mono or poly or a drum type). This was how it should have been done and now that I have a drum type (aka more types) it makes sense to fix it.
+
+- added support for "drum track" which doesn't use the note or capture buffer, rather send notes based on bit reads if a byte or short
+   and always uses the same note (the "root note"). Drum track is therefore a few different tracks, one for each drum "note". 
+	- because the drum tracks don't need midi note buffers, this means I can use a few tracks with out taking up much space
+	- designed for volca drum, at least at first
+	- separate path to generate if a note buffer is a drum
+	- different path to send a drum note
+	- DIV switch to change speed of pattern, but there are less divisions for now
+	- AlG to change which drum pattern is selected. Theres only a few but variety comes from mutation
+	- reserving oct switch for randomness. left (0) is least random, right (2) is most random
+	- the drum pattern uses the regular "rest pattern" since rests are built into the drum pattern (1 for drum hit 0 for rest)
+	- changed the mutate rest function to be a bit shift
+	
+	-
+
 ## July 2026
 
 - removed redundant loop over the channels in the generate() function

@@ -28,13 +28,11 @@ void MidiNote::set(byte _chan, byte _pitch, byte _vel, bool _on) {
   on= _on;
 }
 
-
 //TODO parent and child classes for different types of buffers
 class NoteBuffer {
   public:
-    bool poly; //is this a buffer for a polysynth? (false for monosynth)
     
-    NoteBuffer(byte _num_notes, byte channel, bool poly);
+    NoteBuffer(byte _num_notes, byte channel);
     void add(MidiNote note);
     MidiNote getNote(byte i);
     MidiNote getNote(byte i, bool full_buffer);
@@ -49,8 +47,10 @@ class NoteBuffer {
     byte getNoteVel(byte i);
     byte getRoot();
     byte getBars(); 
+    byte getType();
+    bool isDrum();
+    bool isPoly();
     
-
     void setConstants();
     void setNoteOff(byte index);
     void increment();
@@ -61,14 +61,22 @@ class NoteBuffer {
 
     void setChordNoteOn(byte chord_num);
     void setChordNoteOff(byte chord_num);
-
     
     bool sendExtraNote();
-    void IncExtraNoteCounter();
+    void incExtraNoteCounter();
     void mutateExtraNote();
     bool sendRest();
-    void IncRestCounter();
+    void incRestCounter();
     void mutateRestNote();
+    void makeRestSparse();
+    byte getGlitch();
+    
+    bool sendDrum();
+    void chooseRoot(); //for DRUM_OTHER to cycle through some of the drum notes (currently choose at random)
+    void setDrumPattern(T p);
+    void setRandomRest();
+    void resetDrum();
+    void setRestToExtra();
 
     void startNewSet();
     void setRoot();
@@ -76,7 +84,8 @@ class NoteBuffer {
     void setNotePitch(byte i, byte pitch);
     void setNoteVel(byte i, byte vel);
     void setRoot(byte pitch);
-    
+
+
     void setVelDrift(byte setting); //by default there will be a low drift. setting means to set it to a high drift
     void setOctDrift(bool setting);
         
@@ -90,6 +99,7 @@ class NoteBuffer {
     void debug();
 
   private:
+    bool poly; //is this a buffer for a polysynth? (false for monosynth)  
     byte channel;
     byte curr_note_num;
     byte write_index; //place to insert new notes and expand the current selection of notes
@@ -99,13 +109,19 @@ class NoteBuffer {
     byte type; //0: small buffer, 1: large buffer
     byte bars; 
     byte root_note; //the pitch of the lowest note of the active set of notes in the buffer
-
+    
     byte extra_note_counter;
     byte rest_counter;
     byte extra_note_index; //extra note index into the array of patterns
+    byte glitch;
+
     T rest_pattern;
     T extra_note_pattern;
-    T extra_note_pattern_ref[NUM_PATTERNS] = {p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19};
+    T extra_note_pattern_ref[NUM_PATTERNS] = {p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19,p20,p21,p22,p23};
+    //T drum_pattern_ref[NUM_DRUM_PATTERNS] = {d0,d1,d2,d3,d4,d5,d6,d7,d8};
+    #ifdef VOLCADRUM
+    byte drum_notes[4] = {VD3, VD4, VD5, VD2};
+    #endif
 
     //automate variation over time
     // as notes are added to the buffer we can add automations to create variation and a natural feel
@@ -118,18 +134,39 @@ class NoteBuffer {
     byte k2; //the third note of the "chord" 
     
     bool oct_setting;
-
-    MidiNote buffer[MAX_SEQUENCE_SIZE];
+    
+    MidiNote* buffer;
 };
 
+
 //initialize the buffer with max number of notes
-NoteBuffer::NoteBuffer(byte _type, byte _channel, bool _poly) 
-  : type(_type), write_index(0), read_offset(0), cur_pos(0), channel(_channel), poly(_poly), bars(0) {
-  if (_type == 0){
+NoteBuffer::NoteBuffer(byte _type, byte _channel) 
+  : type(_type), write_index(0), read_offset(0), cur_pos(0), channel(_channel), bars(0) {
+  if (_type == CAPTURE){    
     max_note_num = BUFFER_SIZE; //set the maximum for the cicular buffer
-  } else { 
-    max_note_num = MAX_SEQUENCE_SIZE;
-  } 
+  } else if (_type == NOTE_MONOPHONIC) { 
+    max_note_num = MAX_SEQUENCE_SIZE; 
+    poly = false;
+  } else if (_type == NOTE_POLYPHONIC) {
+    max_note_num = MAX_SEQUENCE_SIZE; 
+    poly = true;
+  } else if (_type == DRUM_BASS) {
+    max_note_num = DRUM_BUFF; 
+    poly = false;
+  } else if (_type == DRUM_SNARE) {
+    max_note_num = DRUM_BUFF; 
+    poly = false;
+  } else if (_type == DRUM_HH) {
+    max_note_num = DRUM_BUFF; 
+    poly = false;
+  } else if (_type == DRUM_OTHER) {
+    max_note_num = DRUM_BUFF; 
+    poly = false;
+  } else {
+    max_note_num = BUFFER_SIZE; 
+    poly = false;
+  }
+  buffer = malloc((max_note_num+1) * sizeof(MidiNote)); //this will live until device is turned off.
   setConstants();
 }
 
@@ -138,7 +175,8 @@ void NoteBuffer::setConstants(){
   vel_drift = 0;
   oct_drift = 0;
   extra_note_counter = 1;  //position in the extra note pattern
-  
+  rest_counter = 0;
+
   k1 = random(1, BUFFER_SIZE/4);
   k2 = random(2, BUFFER_SIZE/3);
 
@@ -147,8 +185,27 @@ void NoteBuffer::setConstants(){
     k2 = random(1, curr_note_num);
   }
   
+  glitch = random(2, GLITCH_MAX);
+  
+  rest_pattern = 0;
+  extra_note_pattern = 0;
+  if (type == DRUM_BASS) {    
+    root_note = VD0;
+    rest_pattern = kick0;    
+  } else if (type == DRUM_SNARE){    
+    root_note = VD1;
+    rest_pattern = sn0;    
+  } else if (type == DRUM_HH) {
+    root_note = VD2;
+    rest_pattern = hh0;    
+  } else if (type == DRUM_OTHER){
+    root_note = drum_notes[0];
+    rest_pattern = extra_note_pattern_ref[random(0, NUM_PATTERNS)];      
+  } else {    
+    rest_pattern = extra_note_pattern_ref[random(0, NUM_PATTERNS)];
+  }
   extra_note_pattern = extra_note_pattern_ref[random(0, NUM_PATTERNS)];
-  rest_pattern = extra_note_pattern_ref[random(0, NUM_PATTERNS)];
+  
   setVelDrift(0);
 }
 
@@ -188,7 +245,7 @@ void NoteBuffer::add(MidiNote note){
   //oct_drift = (oct_drift + 1) % 3;
   //Serial.println("OCT DRIFT " + String(oct_drift));
   #ifdef NOTEDEBUG
-  Serial.println("[D] ADDING note " + String(note.pitch) + " to pos: " + String(pos) + " num notes: "+ String(curr_note_num));
+  Serial.println("[D] ADDING note " + String(note.pitch) + " to pos: " + String(pos) + " num notes: "+ String(curr_note_num) + " cur_pos " + String(cur_pos));
   #endif
   if (curr_note_num >= max_note_num){
     curr_note_num = max_note_num; //active notes are the whole buffer when full
@@ -245,6 +302,27 @@ byte NoteBuffer::getBars(){
   return bars;
 }
 
+byte NoteBuffer::getType(){ 
+  return type;
+}
+
+byte NoteBuffer::getGlitch(){
+  return glitch;
+}
+bool NoteBuffer::isPoly(){
+   if (type == NOTE_POLYPHONIC || type == DRUM_OTHER){
+    return true;
+  }
+  return false;
+}
+
+bool NoteBuffer::isDrum(){
+  if (type == NOTE_MONOPHONIC || type == NOTE_POLYPHONIC){
+    return false;
+  }
+  return true;
+}
+
 void NoteBuffer::setVelDrift(byte setting){
   //Note greater than 50 amplitude could result in bad midi values
   if(setting == 3) { //fast and high
@@ -269,34 +347,79 @@ void NoteBuffer::setVelDrift(byte setting){
 void NoteBuffer::setOctDrift(bool setting) {
 }
 
-void NoteBuffer::IncExtraNoteCounter(){
+void NoteBuffer::incExtraNoteCounter(){
   extra_note_counter = (extra_note_counter + 1) % NOTE_COUNTER;
 }
 //based on the extra_note_pattern (binary pattern) decide if we should send an extra note or not
 bool NoteBuffer::sendExtraNote(){  
   bool sendnote = bitRead(extra_note_pattern, extra_note_counter);
-  IncExtraNoteCounter();
+  incExtraNoteCounter();
   return sendnote;  
 }
 void NoteBuffer::mutateExtraNote(){
   //Serial.print("mutate " + String(extra_note_pattern ));
-  extra_note_pattern = bitWrite(extra_note_pattern, random(8), random(1));
+  extra_note_pattern = bitWrite(extra_note_pattern, random(sizeof(T)*8), random(1));
   //Serial.print(" to " + String(extra_note_pattern ));
 }
 
-void NoteBuffer::IncRestCounter(){
+void NoteBuffer::incRestCounter(){
   rest_counter = (rest_counter + 1) % REST_COUNTER;
+  if (NoteBuffer::isDrum()){
+    if (rest_counter == 7){
+      bars = bars + 1;
+    } 
+  }
 }
-//based on the extra_rest_pattern (binary pattern) decide if we should insert a rest
+
+
+void NoteBuffer::chooseRoot() {
+  root_note = drum_notes[random(0,NUM_DRUM_OTHER)];
+  return;
+}
+bool NoteBuffer::sendDrum(){ //we can use the rest functionality because rests are built into the drum pattern
+  bool senddrum = sendRest();
+  if (type == DRUM_OTHER) {
+    chooseRoot();
+  }
+  return senddrum;
+}
+
 bool NoteBuffer::sendRest(){  
   bool sendrest = bitRead(rest_pattern, rest_counter);
-  //Serial.println(" " + String(rest_pattern) + " " + String(rest_counter) + " " + String(sendrest));
-  IncRestCounter();
-  return sendrest;  
+  //
+  //Serial.println("  pattern  ->" + String((T) rest_pattern) + " " + String(rest_counter) + " " + String(sendrest)+ " " + String(sizeof(rest_pattern)));
+  incRestCounter();  
+  return (sendrest);  //use 0 as rest instead of 1. Therefore send a rest when there's a 0 in the pattern
 }
-void NoteBuffer::mutateRestNote(){
-  //this works only for patterns 8 bits long 
-  rest_pattern = bitWrite(rest_pattern, random(8), random(1));
+void NoteBuffer::mutateRestNote(){  
+  rest_pattern =  rest_pattern >> 1;
+  rest_pattern = bitWrite(rest_pattern, random(4,sizeof(T)*8), 1);
+}
+
+void NoteBuffer::makeRestSparse(){
+  rest_pattern = bitWrite(rest_pattern, random(sizeof(T)*8), 0);
+  rest_pattern = bitWrite(rest_pattern, random(sizeof(T)*8), 0);
+}
+
+//directly set the pattern. I think this should be ok
+void NoteBuffer::setDrumPattern(T p){
+  rest_pattern = p;
+}
+
+//mainly used by drum channels since sending extra notes isn't part of the functionality (yet)
+void NoteBuffer::setRestToExtra(){  
+  byte newpt = extra_note_pattern; 
+  byte ptmask = rest_pattern; // downcast to byte if T is larger than a byte  
+  rest_pattern  ^= (T) ptmask;//bitmask off the lower byte (last half of the pattern)
+  rest_pattern |= newpt; //replace the maked pattern with a new random one
+}
+
+void NoteBuffer::setRandomRest(){
+  //Serial.println("set random");
+  byte newpattern = extra_note_pattern_ref[random(0, NUM_PATTERNS)];  
+  byte patt_mask = rest_pattern;   
+  rest_pattern ^= (T) patt_mask; //bitmask off the lower byte (last half of the pattern)  
+  rest_pattern |= newpattern;   //replace the maked pattern with a new random one  
 }
 
 //Returns a note from the buffer determined by the value K 
@@ -336,6 +459,25 @@ void NoteBuffer::setChordNoteOff(byte k) {
 void NoteBuffer::setRoot(byte pitch){
   root_note = pitch;
 }
+
+void NoteBuffer::resetDrum(){
+   if (type == DRUM_BASS) {    
+    root_note = VD0;
+    rest_pattern = kick0;
+    extra_note_pattern = 0 ;
+  } else if (type == DRUM_SNARE){    
+    root_note = VD1;
+    rest_pattern = sn0;
+    extra_note_pattern = 0;
+  } else if (type == DRUM_HH) { 
+    root_note = VD2;
+    rest_pattern = hh0;
+    extra_note_pattern = hh1;
+  } 
+  //do nothing for other types
+  return;
+}
+
 
 void NoteBuffer::setNotePitch(byte i, byte pitch){
   byte pos = (cur_pos + (i % curr_note_num)) % max_note_num;
@@ -397,12 +539,15 @@ MidiNote NoteBuffer::getNote(byte i){
 //returns the ith note from currently active set of notes in the buffer, does not alter the buffer
 MidiNote NoteBuffer::getNote(byte i, bool full_buffer){
   byte pos;
+  
   if(full_buffer) { 
     pos = (cur_pos + i) % max_note_num;
   } else {
     pos = (cur_pos + (i % curr_note_num)) % max_note_num;
   }
-  //Serial.println("GET NOTE: " + String(buffer[pos].pitch) + " pos: " + String(pos) + " cur_pos: " + String(cur_pos) + " i: " + String(i) + " cur_note_num: " + String(curr_note_num) + " pos % c: " +String (((byte) pos % curr_note_num)));
+ 
+  //Serial.println("GET NOTE "  + String(buffer[pos].pitch)+ " cur_pos: " + String(cur_pos) + " pos: " + String(pos) + " i: " + String(i) + " //cur_note_num: " + String(curr_note_num) + " max: " +String(max_note_num));
+ 
   MidiNote new_note(buffer[pos].chan, buffer[pos].pitch, buffer[pos].vel, buffer[pos].on);
   return new_note;
 }
@@ -419,7 +564,7 @@ void NoteBuffer::increment(){
   read_offset = ((read_offset + 1) % curr_note_num) % max_note_num;
   if (read_offset == 0) {    
     bars = bars + 1;
-  }
+  }  
  // Serial.println("INC: cur_pos: " + String(cur_pos) + " read_offset: " + String(read_offset) + " curr note num: " + String(curr_note_num));
 }
 
